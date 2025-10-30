@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -36,7 +37,7 @@ public class UserService {
         return userRepository.save(u);
     }
 
-    // displayName을 받아 저장/갱신
+    // 카카오: 이메일 기준 upsert + 이름 갱신
     public User upsertKakaoUser(String kakaoId, String email, String displayName) {
         return userRepository.findByEmail(email).map(u -> {
             if (displayName != null && !displayName.isBlank() && !displayName.equals(u.getName())) {
@@ -66,5 +67,11 @@ public class UserService {
     public User getById(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "사용자 없음"));
+    }
+
+    @Transactional
+    public void deleteUserById(Long id) {
+        if (!userRepository.existsById(id)) return;
+        userRepository.deleteById(id);
     }
 }
