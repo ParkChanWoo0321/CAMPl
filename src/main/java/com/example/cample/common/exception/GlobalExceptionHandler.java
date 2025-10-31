@@ -1,6 +1,8 @@
+// src/main/java/com/example/cample/common/exception/GlobalExceptionHandler.java
 package com.example.cample.common.exception;
 
 import org.springframework.http.*;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,6 +23,12 @@ public class GlobalExceptionHandler {
                 .map(e -> e.getField() + ": " + e.getDefaultMessage())
                 .findFirst().orElse("Validation error");
         return ResponseEntity.badRequest().body(Map.of("status", 400, "error", msg));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("status", 403, "error", "Forbidden"));
     }
 
     @ExceptionHandler(Exception.class)

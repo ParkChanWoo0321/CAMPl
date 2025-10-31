@@ -2,6 +2,7 @@
 package com.example.cample.security;
 
 import com.example.cample.security.model.CustomUserPrincipal;
+import com.example.cample.user.domain.UserStatus;
 import com.example.cample.user.repo.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -27,7 +28,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
             throws IOException, ServletException {
 
-        // 이미 인증된 경우 재설정하지 않음
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
             String header = req.getHeader("Authorization");
 
@@ -39,9 +39,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     if (userId != null) {
                         userRepository.findById(userId).ifPresent(user -> {
-                            // ★ principal을 반드시 CustomUserPrincipal로 설정
+                            if (user.getStatus() != UserStatus.ACTIVE) {
+                                return; // 비활성/탈퇴 계정은 인증 세팅 금지
+                            }
                             CustomUserPrincipal principal = new CustomUserPrincipal(user);
-
                             var authorities = principal.getAuthorities();
                             if (authorities == null) authorities = Collections.emptyList();
 

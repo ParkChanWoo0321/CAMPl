@@ -116,7 +116,7 @@ public class AuthController {
 
     // ★ 본인 계정 하드 삭제 + 리프레시 쿠키 제거
     @PreAuthorize("isAuthenticated()") // 이 메서드는 반드시 인증 필요
-    @DeleteMapping("/me")
+    @DeleteMapping("/unregister")
     public ResponseEntity<Void> deleteMyAccount(@AuthenticationPrincipal CustomUserPrincipal principal,
                                                 HttpServletResponse res) {
         // 널가드: 혹시 설정 누락 시 401로 반환

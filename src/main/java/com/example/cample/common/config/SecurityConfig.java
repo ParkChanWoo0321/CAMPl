@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity; // ★ 추가
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -29,7 +29,7 @@ import java.util.List;
 
 @Configuration
 @RequiredArgsConstructor
-@EnableMethodSecurity // ★ 메서드 보안 활성화 (@PreAuthorize 등)
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
@@ -50,7 +50,6 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(new RestAuthenticationEntryPoint()))
                 .authorizeHttpRequests(auth -> auth
-                        // 공개 엔드포인트만 명시적으로 허용 (탈퇴 /auth/me 는 인증 필요)
                         .requestMatchers(HttpMethod.POST,
                                 "/auth/login",
                                 "/auth/signup",
@@ -75,11 +74,23 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        List<String> origins = Arrays.stream(allowedOrigins.split(",")).map(String::trim).toList();
-        cfg.setAllowedOrigins(origins);
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
+
+        if (origins.size() == 1 && "*".equals(origins.get(0))) {
+            // 와일드카드 사용 시: 브라우저 정책상 credentials 불가
+            cfg.setAllowedOriginPatterns(List.of("*"));
+            cfg.setAllowCredentials(false);
+        } else {
+            cfg.setAllowedOrigins(origins);
+            cfg.setAllowCredentials(true);
+        }
+
         cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
-        cfg.setAllowedHeaders(List.of("*"));
-        cfg.setAllowCredentials(true);
+        cfg.setAllowedHeaders(List.of("Authorization","Content-Type","X-Requested-With","Accept","Origin"));
+        cfg.setExposedHeaders(List.of("Location"));
 
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
         src.registerCorsConfiguration("/**", cfg);
