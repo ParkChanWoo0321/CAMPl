@@ -11,8 +11,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -60,11 +61,21 @@ public class CalendarController {
 
     // 메인 "오늘 안내"
     @GetMapping("/summary/today")
-    public Map<String, Object> summaryToday(@AuthenticationPrincipal CustomUserPrincipal me) {
-        var items = service.listToday(me.getId());
-        Map<String, Object> res = new HashMap<>();
-        res.put("count", items.size());
-        res.put("items", items);
-        return res;
+    public Map<String, Object> summaryToday(
+            @AuthenticationPrincipal CustomUserPrincipal me,
+            @RequestParam(required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate date // ← 옵션: yyyy-MM-dd
+    ) {
+        LocalDate target = (date != null) ? date : LocalDate.now(ZoneId.of("Asia/Seoul"));
+        LocalDateTime from = target.atStartOfDay();
+        LocalDateTime to = target.plusDays(1).atStartOfDay();
+
+        var items = service.list(from, to, me.getId());
+        return Map.of(
+                "date", target.toString(),
+                "count", items.size(),
+                "items", items
+        );
     }
 }

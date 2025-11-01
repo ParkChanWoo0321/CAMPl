@@ -37,10 +37,6 @@ public class CalendarEvent {
     @Column(nullable = false)
     private LocalDateTime endAt;
 
-    @Column(nullable = false)
-    @Builder.Default
-    private boolean allDay = false;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private EventType type; // SCHOOL or PERSONAL

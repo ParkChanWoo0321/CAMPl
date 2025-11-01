@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
-
 import java.util.List;
 
 @Service
@@ -35,13 +34,11 @@ public class CalendarService {
     public CalendarEventDto create(CalendarEventDto req, Long me) {
         validateUpsert(req);
 
-        LocalDateTime[] win = normalize(req.getAllDay(), req.getStartAt(), req.getEndAt());
         CalendarEvent e = CalendarEvent.builder()
                 .title(req.getTitle())
                 .description(req.getDescription())
-                .startAt(win[0])
-                .endAt(win[1])
-                .allDay(Boolean.TRUE.equals(req.getAllDay()))
+                .startAt(req.getStartAt())
+                .endAt(req.getEndAt())
                 .type(EventType.PERSONAL) // 강제
                 .ownerId(me)
                 .location(req.getLocation())
@@ -63,12 +60,10 @@ public class CalendarService {
             throw new ApiException(HttpStatus.FORBIDDEN, "본인 일정만 수정할 수 있습니다");
         }
 
-        LocalDateTime[] win = normalize(req.getAllDay(), req.getStartAt(), req.getEndAt());
         e.setTitle(req.getTitle());
         e.setDescription(req.getDescription());
-        e.setStartAt(win[0]);
-        e.setEndAt(win[1]);
-        e.setAllDay(Boolean.TRUE.equals(req.getAllDay()));
+        e.setStartAt(req.getStartAt());
+        e.setEndAt(req.getEndAt());
         e.setLocation(req.getLocation());
 
         return CalendarEventDto.from(e);
@@ -105,14 +100,5 @@ public class CalendarService {
         if (!req.getStartAt().isBefore(req.getEndAt())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "startAt < endAt 이어야 합니다");
         }
-    }
-
-    // 종일: [해당일 00:00, 다음날 00:00)
-    private LocalDateTime[] normalize(boolean allDay, LocalDateTime start, LocalDateTime end) {
-        if (!allDay) return new LocalDateTime[]{start, end};
-        LocalDate s = start.atZone(KST).toLocalDate();
-        LocalDateTime s0 = s.atStartOfDay();
-        LocalDateTime e0 = s.plusDays(1).atStartOfDay();
-        return new LocalDateTime[]{s0, e0};
     }
 }

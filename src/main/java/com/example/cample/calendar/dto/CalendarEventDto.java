@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
 @Builder
 public class CalendarEventDto {
 
-    // 응답 시 사용
     private Long id;
 
     @NotBlank
@@ -28,9 +27,6 @@ public class CalendarEventDto {
     @NotNull
     private LocalDateTime endAt;
 
-    @NotNull
-    private Boolean allDay;
-
     @Size(max = 100)
     private String location;
 
@@ -44,7 +40,6 @@ public class CalendarEventDto {
                 .description(e.getDescription())
                 .startAt(e.getStartAt())
                 .endAt(e.getEndAt())
-                .allDay(e.isAllDay())
                 .location(e.getLocation())
                 .type(e.getType())
                 .build();
