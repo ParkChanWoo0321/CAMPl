@@ -12,6 +12,7 @@ import java.util.Optional;
 
 public interface CalendarEventRepository extends JpaRepository<CalendarEvent, Long> {
 
+    // LECTURE까지 포함해서 조회하는 버전
     @Query("""
            select e
            from CalendarEvent e
@@ -19,16 +20,16 @@ public interface CalendarEventRepository extends JpaRepository<CalendarEvent, Lo
              and e.endAt   > :from
              and (
                     e.type = :school
-                 or (e.type = :personal and e.ownerId = :ownerId)
+                 or (e.ownerId = :ownerId and e.type in :ownerTypes)
                  )
            order by e.startAt asc, e.type asc
            """)
-    List<CalendarEvent> findIntersect(
+    List<CalendarEvent> findIntersectWithOwnerTypes(
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to,
             @Param("ownerId") Long ownerId,
             @Param("school") EventType school,
-            @Param("personal") EventType personal
+            @Param("ownerTypes") List<EventType> ownerTypes
     );
 
     Optional<CalendarEvent> findByIdAndOwnerId(Long id, Long ownerId);
