@@ -18,7 +18,7 @@ public class CourseDto {
     private String professor;
     private String section;
     private Integer credit;
-    private Integer year;          // ← 추가: 학년
+    private String year;          // ← 추가: 학년
     private Long categoryId;
     private String categoryName;
 
@@ -45,7 +45,7 @@ public class CourseDto {
                 .professor(c.getProfessor())
                 .section(c.getSection())
                 .credit(c.getCredit())
-                .year(Integer.valueOf(c.getYear())) // ← 매핑 추가
+                .year(c.getYear())
                 .categoryId(c.getCategory() != null ? c.getCategory().getId() : null)
                 .categoryName(c.getCategory() != null ? c.getCategory().getName() : null)
                 .times(timeList.stream().map(t -> Slot.builder()
