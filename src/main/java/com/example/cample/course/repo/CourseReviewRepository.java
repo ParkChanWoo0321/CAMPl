@@ -2,24 +2,20 @@
 package com.example.cample.course.repo;
 
 import com.example.cample.course.domain.CourseReview;
-import org.springframework.data.domain.*;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface CourseReviewRepository extends JpaRepository<CourseReview, Long> {
 
-    @Query("""
-        select r from CourseReview r
-        where r.course.id = :courseId and r.deleted = false
-        order by r.createdAt desc
-    """)
-    Page<CourseReview> findByCourseIdVisible(@Param("courseId") Long courseId, Pageable pageable);
-
     Optional<CourseReview> findByCourseIdAndUserId(Long courseId, Long userId);
 
-    // ✅ Object[] 대신 인터페이스 프로젝션 사용
+    // 상세 조회에서 사용할 가시(visible) 리뷰 전체 목록
+    List<CourseReview> findByCourseIdAndDeletedFalseOrderByCreatedAtDesc(Long courseId);
+
+    // 평점 요약(평균/개수)
     interface CountAvg {
         Long getCnt();
         Double getAvg();

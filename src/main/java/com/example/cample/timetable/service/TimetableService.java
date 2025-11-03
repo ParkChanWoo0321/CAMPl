@@ -1,3 +1,4 @@
+// src/main/java/com/example/cample/timetable/service/TimetableService.java
 package com.example.cample.timetable.service;
 
 import com.example.cample.calendar.service.CalendarService;
@@ -15,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.cample.timetable.dto.ResolveResult;  // ▶ 우리의 DTO 사용
 import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -35,26 +37,103 @@ public class TimetableService {
                 .stream().map(TimetableItem::getCourseId).toList();
     }
 
+    // 1) 시도: 충돌 없으면 즉시 추가, 있으면 conflict=true 만 반환
     @Transactional
-    public AddResult add(Long userId, AddCourseRequest req) {
-        Long courseId = req.getCourseId();
+    public TryAddResponse tryAdd(Long userId, Long courseId) {
+        ensureNotDuplicated(userId, courseId);
+        Course newCourse = getCourse(courseId);
+        List<CourseTime> newSlots = timeRepo.findByCourseId(courseId);
 
+        List<ConflictHolder> conflicts = findConflicts(userId, newSlots);
+        if (!conflicts.isEmpty()) {
+            return TryAddResponse.builder().conflict(true).build();
+        }
+
+        // 충돌 없음 → 즉시 추가
+        AddOpResult r = addItemAndEvents(userId, newCourse, newSlots);
+        return TryAddResponse.builder()
+                .conflict(false)
+                .itemId(r.itemId())
+                .createdEventCount(r.createdEvents())
+                .build();
+    }
+
+    // 2) 해결: KEEP(추가 안 함) / REPLACE(기존 겹치는 항목 삭제 + 추가)
+    @Transactional
+    public ResolveResult resolve(Long userId, ResolveRequest req) {
+        Long courseId = req.getCourseId();
+        ensureNotDuplicated(userId, courseId); // 이미 들어가 있으면 409
+        Course newCourse = getCourse(courseId);
+        List<CourseTime> newSlots = timeRepo.findByCourseId(courseId);
+
+        List<ConflictHolder> conflicts = findConflicts(userId, newSlots);
+
+        if (conflicts.isEmpty()) {
+            AddOpResult r = addItemAndEvents(userId, newCourse, newSlots);
+            return ResolveResult.builder()
+                    .applied(true)
+                    .itemId(r.itemId())
+                    .createdEventCount(r.createdEvents())
+                    .removedItemIds(List.of())
+                    .deletedEventCount(0)
+                    .build();
+        }
+
+        if (req.getResolution() == ConflictResolution.KEEP) {
+            return ResolveResult.builder()
+                    .applied(false)
+                    .removedItemIds(List.of())
+                    .deletedEventCount(0)
+                    .build();
+        }
+
+        // REPLACE: 충돌 항목 삭제 후 추가
+        List<Long> removedItemIds = conflicts.stream()
+                .map(c -> c.item.getId()).distinct().toList();
+        int deletedEvents = 0;
+        for (Long id : removedItemIds) {
+            deletedEvents += deleteItemAndCalendar(userId, id);
+        }
+
+        AddOpResult r = addItemAndEvents(userId, newCourse, newSlots);
+        return ResolveResult.builder()
+                .applied(true)
+                .itemId(r.itemId())
+                .createdEventCount(r.createdEvents())
+                .removedItemIds(removedItemIds)
+                .deletedEventCount(deletedEvents)
+                .build();
+    }
+
+    @Transactional
+    public void remove(Long userId, Long itemId) {
+        deleteItemAndCalendar(userId, itemId);
+    }
+
+    // ===== 내부 유틸 =====
+
+    private void ensureNotDuplicated(Long userId, Long courseId) {
         if (itemRepo.findByUserIdAndSemesterCodeAndCourseId(userId, SemesterConst.SEMESTER_CODE, courseId).isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "이미 내 시간표에 존재합니다");
         }
+    }
 
-        Course newCourse = courseRepo.findById(courseId)
+    private Course getCourse(Long courseId) {
+        Course c = courseRepo.findById(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "강의가 존재하지 않습니다"));
-        if (!SemesterConst.SEMESTER_CODE.equals(newCourse.getSemesterCode())) {
+        if (!SemesterConst.SEMESTER_CODE.equals(c.getSemesterCode())) {
             throw new ApiException(HttpStatus.NOT_FOUND, "학기 불일치");
         }
-        List<CourseTime> newSlots = timeRepo.findByCourseId(courseId);
+        return c;
+    }
 
+    private List<ConflictHolder> findConflicts(Long userId, List<CourseTime> newSlots) {
         List<TimetableItem> existingItems =
                 itemRepo.findByUserIdAndSemesterCode(userId, SemesterConst.SEMESTER_CODE);
 
-        Map<Long, List<CourseTime>> existingTimesByCourse = timeRepo
-                .findByCourseIdIn(existingItems.stream().map(TimetableItem::getCourseId).toList())
+        Map<Long, List<CourseTime>> existingTimesByCourse = existingItems.isEmpty()
+                ? Map.of()
+                : timeRepo.findByCourseIdIn(existingItems.stream().map(TimetableItem::getCourseId).toList())
                 .stream().collect(Collectors.groupingBy(ct -> ct.getCourse().getId()));
 
         List<ConflictHolder> conflicts = new ArrayList<>();
@@ -69,25 +148,14 @@ public class TimetableService {
                 }
             }
         }
+        return conflicts;
+    }
 
-        List<Long> removedItemIds = new ArrayList<>();
-        int deletedEvents = 0;
-
-        if (!conflicts.isEmpty()) {
-            if (req.getConflictResolution() == ConflictResolution.KEEP) {
-                throwConflict(conflicts, newCourse.getName());
-            } else {
-                for (Long itemId : conflicts.stream().map(c -> c.item.getId()).distinct().toList()) {
-                    deletedEvents += deleteItemAndCalendar(userId, itemId);
-                    removedItemIds.add(itemId);
-                }
-            }
-        }
-
+    private AddOpResult addItemAndEvents(Long userId, Course newCourse, List<CourseTime> newSlots) {
         TimetableItem saved = itemRepo.save(TimetableItem.builder()
                 .userId(userId)
                 .semesterCode(SemesterConst.SEMESTER_CODE)
-                .courseId(courseId)
+                .courseId(newCourse.getId())
                 .build());
 
         int createdEvents = 0;
@@ -105,34 +173,11 @@ public class TimetableService {
                 createdEvents++;
             }
         }
-
-        return AddResult.builder()
-                .itemId(saved.getId())
-                .removedItemIds(removedItemIds)
-                .createdEventCount(createdEvents)
-                .deletedEventCount(deletedEvents)
-                .build();
-    }
-
-    @Transactional
-    public void remove(Long userId, Long itemId) {
-        deleteItemAndCalendar(userId, itemId);
+        return new AddOpResult(saved.getId(), createdEvents);
     }
 
     private boolean overlaps(LocalTime aStart, LocalTime aEnd, LocalTime bStart, LocalTime bEnd) {
         return aStart.isBefore(bEnd) && bStart.isBefore(aEnd);
-    }
-
-    private void throwConflict(List<ConflictHolder> conflicts, String newName) {
-        List<ConflictDto> dtos = conflicts.stream().map(c -> ConflictDto.builder()
-                .existingItemId(c.item.getId())
-                .existingCourseId(c.item.getCourseId())
-                .existingCourseName(c.itemCourseName())
-                .day(c.ex.getDayOfWeek().name())
-                .existing(c.ex.getStartTime() + "-" + c.ex.getEndTime())
-                .requested(c.nv.getStartTime() + "-" + c.nv.getEndTime())
-                .build()).toList();
-        throw new ApiException(HttpStatus.CONFLICT, "시간이 겹치는 강의가 있습니다 (REPLACE로 재시도)");
     }
 
     private int deleteItemAndCalendar(Long userId, Long itemId) {
@@ -143,7 +188,9 @@ public class TimetableService {
         }
         var maps = mapRepo.findByTimetableItemId(itemId);
         var evIds = maps.stream().map(TimetableCalendarMap::getCalendarEventId).toList();
-        calendarService.deleteEventsByIdsForOwner(evIds, userId);
+        if (!evIds.isEmpty()) {
+            calendarService.deleteEventsByIdsForOwner(evIds, userId);
+        }
         mapRepo.deleteByTimetableItemId(itemId);
         itemRepo.delete(item);
         return evIds.size();
@@ -156,16 +203,11 @@ public class TimetableService {
 
     private String titleOf(Course c) {
         String base = c.getName();
-        if (c.getProfessor() != null && !c.getProfessor().isBlank()) {
-            base += " (" + c.getProfessor() + ")";
-        }
-        if (c.getSection() != null && !c.getSection().isBlank()) {
-            base += " - " + c.getSection();
-        }
+        if (c.getProfessor() != null && !c.getProfessor().isBlank()) base += " (" + c.getProfessor() + ")";
+        if (c.getSection() != null && !c.getSection().isBlank())     base += " - " + c.getSection();
         return base;
     }
 
-    /** building 제거 버전: room 만 사용 */
     private String locationOf(CourseTime t) {
         String room = t.getRoom();
         return (room == null || room.isBlank()) ? null : room;
@@ -181,10 +223,11 @@ public class TimetableService {
         TimetableItem item;
         CourseTime ex;
         CourseTime nv;
-
         ConflictHolder(TimetableItem item, CourseTime ex, CourseTime nv) {
             this.item = item; this.ex = ex; this.nv = nv;
         }
         String itemCourseName() { return courseName(item.getCourseId()); }
     }
+
+    private record AddOpResult(Long itemId, int createdEvents) {}
 }

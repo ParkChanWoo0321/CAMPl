@@ -1,9 +1,9 @@
+// src/main/java/com/example/cample/timetable/controller/TimetableController.java
 package com.example.cample.timetable.controller;
 
 import com.example.cample.common.constant.SemesterConst;
 import com.example.cample.security.model.CustomUserPrincipal;
-import com.example.cample.timetable.dto.AddCourseRequest;
-import com.example.cample.timetable.dto.AddResult;
+import com.example.cample.timetable.dto.*;
 import com.example.cample.timetable.service.TimetableService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,8 @@ public class TimetableController {
     private final TimetableService service;
 
     @GetMapping
-    public Map<String, Object> myTimetable(@org.springframework.security.core.annotation.AuthenticationPrincipal CustomUserPrincipal me) {
+    public Map<String, Object> myTimetable(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal CustomUserPrincipal me) {
         List<Long> courseIds = service.myCourseIds(me.getId());
         return Map.of(
                 "semester", SemesterConst.SEMESTER_CODE,
@@ -28,10 +29,18 @@ public class TimetableController {
         );
     }
 
-    @PostMapping("/items")
-    public AddResult add(@Valid @RequestBody AddCourseRequest req,
-                         @org.springframework.security.core.annotation.AuthenticationPrincipal CustomUserPrincipal me) {
-        return service.add(me.getId(), req);
+    // 1단계: 충돌 검사 + (충돌 없으면 즉시 추가)
+    @PostMapping("/items/try-add")
+    public TryAddResponse tryAdd(@Valid @RequestBody AddCourseRequest req,
+                                 @org.springframework.security.core.annotation.AuthenticationPrincipal CustomUserPrincipal me) {
+        return service.tryAdd(me.getId(), req.getCourseId());
+    }
+
+    // 2단계: 프런트 선택(KEEP/REPLACE) 후 확정
+    @PostMapping("/items/resolve")
+    public ResolveResult resolve(@Valid @RequestBody ResolveRequest req,
+                                 @org.springframework.security.core.annotation.AuthenticationPrincipal CustomUserPrincipal me) {
+        return service.resolve(me.getId(), req);
     }
 
     @DeleteMapping("/items/{itemId}")

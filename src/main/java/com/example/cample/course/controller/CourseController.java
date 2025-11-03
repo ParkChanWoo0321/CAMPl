@@ -19,80 +19,94 @@ public class CourseController {
 
     private final CourseService service;
 
-    // 통합 검색: categoryId, startTime, endTime, credit, year + sort
-    // 예) /api/courses?categoryId=29&startTime=13:30&endTime=16:30&credit=3&year=2&sort=name
+    // 통합 검색
     @GetMapping
     public List<CourseDto> search(
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) String startTime,   // "13:30" 또는 "1330"
-            @RequestParam(required = false) String endTime,     // "16:30" 또는 "1630"
             @RequestParam(required = false) Integer credit,
-            @RequestParam(required = false) String year,        // "1"~"4" 또는 "모든학년"
-            @RequestParam(required = false, defaultValue = "default")
-            String sort                                         // default|code|name|ratingDesc|ratingAsc
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false, defaultValue = "default") String sort,
+            @RequestParam(required = false) String days,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime,
+            @RequestParam(required = false) String ranges,
+            @RequestParam(required = false) String windows
     ) {
-        return service.search(categoryId, startTime, endTime, credit, year, sort);
+        return service.search(categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
 
-    // 단일 검색 4종 (여기도 동일 필터/정렬 추가로 받아서 바로 체인 가능)
+    // 단일 검색 4종
     @GetMapping("/search/name")
-    public List<CourseDto> searchByName(@RequestParam String q,
-                                        @RequestParam(required = false) Long categoryId,
-                                        @RequestParam(required = false) String startTime,
-                                        @RequestParam(required = false) String endTime,
-                                        @RequestParam(required = false) Integer credit,
-                                        @RequestParam(required = false) String year,
-                                        @RequestParam(defaultValue = "default") String sort) {
-        return service.searchByName(q, categoryId, startTime, endTime, credit, year, sort);
+    public List<CourseDto> searchByName(
+            @RequestParam String q,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Integer credit,
+            @RequestParam(required = false) String year,
+            @RequestParam(defaultValue = "default") String sort,
+            @RequestParam(required = false) String days,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime,
+            @RequestParam(required = false) String ranges,
+            @RequestParam(required = false) String windows
+    ) {
+        return service.searchByName(q, categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
 
     @GetMapping("/search/professor")
-    public List<CourseDto> searchByProfessor(@RequestParam String professor,
-                                             @RequestParam(required = false) Long categoryId,
-                                             @RequestParam(required = false) String startTime,
-                                             @RequestParam(required = false) String endTime,
-                                             @RequestParam(required = false) Integer credit,
-                                             @RequestParam(required = false) String year,
-                                             @RequestParam(defaultValue = "default") String sort) {
-        return service.searchByProfessor(professor, categoryId, startTime, endTime, credit, year, sort);
+    public List<CourseDto> searchByProfessor(
+            @RequestParam String professor,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Integer credit,
+            @RequestParam(required = false) String year,
+            @RequestParam(defaultValue = "default") String sort,
+            @RequestParam(required = false) String days,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime,
+            @RequestParam(required = false) String ranges,
+            @RequestParam(required = false) String windows
+    ) {
+        return service.searchByProfessor(professor, categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
 
     @GetMapping("/search/code")
-    public List<CourseDto> searchByCourseCode(@RequestParam String courseCode,
-                                              @RequestParam(required = false) Long categoryId,
-                                              @RequestParam(required = false) String startTime,
-                                              @RequestParam(required = false) String endTime,
-                                              @RequestParam(required = false) Integer credit,
-                                              @RequestParam(required = false) String year,
-                                              @RequestParam(defaultValue = "default") String sort) {
-        return service.searchByCourseCode(courseCode, categoryId, startTime, endTime, credit, year, sort);
+    public List<CourseDto> searchByCourseCode(
+            @RequestParam String courseCode,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Integer credit,
+            @RequestParam(required = false) String year,
+            @RequestParam(defaultValue = "default") String sort,
+            @RequestParam(required = false) String days,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime,
+            @RequestParam(required = false) String ranges,
+            @RequestParam(required = false) String windows
+    ) {
+        return service.searchByCourseCode(courseCode, categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
 
     @GetMapping("/search/room")
-    public List<CourseDto> searchByRoom(@RequestParam String room,
-                                        @RequestParam(required = false) Long categoryId,
-                                        @RequestParam(required = false) String startTime,
-                                        @RequestParam(required = false) String endTime,
-                                        @RequestParam(required = false) Integer credit,
-                                        @RequestParam(required = false) String year,
-                                        @RequestParam(defaultValue = "default") String sort) {
-        return service.searchByRoom(room, categoryId, startTime, endTime, credit, year, sort);
+    public List<CourseDto> searchByRoom(
+            @RequestParam String room,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Integer credit,
+            @RequestParam(required = false) String year,
+            @RequestParam(defaultValue = "default") String sort,
+            @RequestParam(required = false) String days,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime,
+            @RequestParam(required = false) String ranges,
+            @RequestParam(required = false) String windows
+    ) {
+        return service.searchByRoom(room, categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
 
-    // 단건/리뷰 API 유지
+    // 단건: 상세 + 평점 + 강의평 목록
     @GetMapping("/{courseId}")
     public CourseDto getOne(@PathVariable Long courseId) {
         return service.getOne(courseId);
     }
 
-    @GetMapping("/reviews/{courseId}")
-    public org.springframework.data.domain.Page<ReviewResponse> reviews(
-            @PathVariable Long courseId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return service.reviews(courseId, org.springframework.data.domain.PageRequest.of(page, size));
-    }
-
+    // 리뷰 작성/수정, 삭제(유지)
     @PostMapping("/reviews/{courseId}")
     public ReviewResponse upsertMyReview(@PathVariable Long courseId,
                                          @Valid @RequestBody ReviewRequest req,
@@ -105,10 +119,5 @@ public class CourseController {
                                               @AuthenticationPrincipal CustomUserPrincipal me) {
         service.deleteMyReview(courseId, me.getId());
         return Map.of("ok", true);
-    }
-
-    @GetMapping("/rating/{courseId}")
-    public Map<String, Object> rating(@PathVariable Long courseId) {
-        return service.ratingSummary(courseId);
     }
 }

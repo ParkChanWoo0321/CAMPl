@@ -18,24 +18,29 @@ public class CourseDto {
     private String professor;
     private String section;
     private Integer credit;
-    private String year;          // ← 추가: 학년
+    private String year;
     private Long categoryId;
     private String categoryName;
 
     @Builder.Default
     private List<Slot> times = new ArrayList<>();
 
-    private Double ratingAvg; // optional
-    private Long ratingCount; // optional
+    private Double ratingAvg;
+    private Long ratingCount;
+
+    // 상세 전용: 강의평 목록
+    @Builder.Default
+    private List<ReviewResponse> reviews = new ArrayList<>();
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class Slot {
-        private DayOfWeek dayOfWeek;   // 요일
-        private LocalTime startTime;   // 시작시간
-        private LocalTime endTime;     // 종료시간
-        private String room;           // 강의실
+        private DayOfWeek dayOfWeek;
+        private LocalTime startTime;
+        private LocalTime endTime;
+        private String room;
     }
 
+    // 리스트/검색용(리뷰 없음)
     public static CourseDto from(Course c, List<CourseTime> timeList, Double avg, Long count) {
         return CourseDto.builder()
                 .id(c.getId())
@@ -57,5 +62,13 @@ public class CourseDto {
                 .ratingAvg(avg)
                 .ratingCount(count)
                 .build();
+    }
+
+    // 단건 상세용(리뷰 포함)
+    public static CourseDto fromDetailed(Course c, List<CourseTime> timeList, Double avg, Long count,
+                                         List<ReviewResponse> reviewList) {
+        CourseDto dto = from(c, timeList, avg, count);
+        dto.setReviews(reviewList != null ? reviewList : List.of());
+        return dto;
     }
 }
