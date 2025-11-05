@@ -14,8 +14,9 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
@@ -59,23 +60,59 @@ public class CalendarController {
         return ResponseEntity.noContent().build();
     }
 
-    // 메인 "오늘 안내"
+    // ✅ 새 API: 캘린더에서 특정 '날짜'를 선택했을 때 그 날의 일정만 그대로 반환
+    @GetMapping("/day")
+    public List<CalendarEventDto> day(
+            @AuthenticationPrincipal CustomUserPrincipal me,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+    ) {
+        LocalDateTime from = date.atStartOfDay();
+        LocalDateTime to = date.plusDays(1).atStartOfDay();
+        return service.list(from, to, me.getId());
+    }
+
+    // ✅ 확장된 "오늘 안내" (또는 ?date=yyyy-MM-dd 테스트)
+    //    요구대로 items 제거, 장소별 개수 + 과거/다음(카테고리/제목만)만 응답
     @GetMapping("/summary/today")
     public Map<String, Object> summaryToday(
             @AuthenticationPrincipal CustomUserPrincipal me,
             @RequestParam(required = false)
-            @org.springframework.format.annotation.DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate date // ← 옵션: yyyy-MM-dd
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate date // yyyy-MM-dd (옵션)
     ) {
-        LocalDate target = (date != null) ? date : LocalDate.now(ZoneId.of("Asia/Seoul"));
+        ZoneId KST = ZoneId.of("Asia/Seoul");
+        LocalDate target = (date != null) ? date : LocalDate.now(KST);
         LocalDateTime from = target.atStartOfDay();
         LocalDateTime to = target.plusDays(1).atStartOfDay();
 
         var items = service.list(from, to, me.getId());
+
+        LocalDateTime now = LocalDateTime.now(KST);
+        var past = items.stream()
+                .filter(e -> !e.getEndAt().isAfter(now)) // endAt <= now
+                .map(e -> Map.of("category", e.getCategory(), "title", e.getTitle()))
+                .toList();
+
+        var upcoming = items.stream()
+                .filter(e -> e.getStartAt().isAfter(now)) // startAt > now
+                .map(e -> Map.of("category", e.getCategory(), "title", e.getTitle()))
+                .toList();
+
+        var locationCounts = items.stream()
+                .map(CalendarEventDto::getLocation)
+                .filter(loc -> loc != null && !loc.isBlank())
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                .entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> Map.of("location", e.getKey(), "count", e.getValue()))
+                .toList();
+
         return Map.of(
                 "date", target.toString(),
                 "count", items.size(),
-                "items", items
+                "locationCounts", locationCounts,
+                "past", past,
+                "upcoming", upcoming
         );
     }
 }

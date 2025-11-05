@@ -3,6 +3,7 @@ package com.example.cample.calendar.service;
 
 import com.example.cample.calendar.domain.CalendarEvent;
 import com.example.cample.calendar.domain.EventType;
+import com.example.cample.calendar.domain.EventCategory; // ✅ 추가
 import com.example.cample.calendar.dto.CalendarEventDto;
 import com.example.cample.calendar.repo.CalendarEventRepository;
 import com.example.cample.common.exception.ApiException;
@@ -49,6 +50,7 @@ public class CalendarService {
                 .type(EventType.PERSONAL) // 사용자 수동 일정은 PERSONAL로 고정
                 .ownerId(me)
                 .location(req.getLocation())
+                .category(req.getCategory()) // ✅ 카테고리 저장
                 .build();
 
         return CalendarEventDto.from(repo.save(e));
@@ -74,6 +76,7 @@ public class CalendarService {
         e.setStartAt(req.getStartAt());
         e.setEndAt(req.getEndAt());
         e.setLocation(req.getLocation());
+        e.setCategory(req.getCategory()); // ✅ 카테고리 수정
 
         return CalendarEventDto.from(e);
     }
@@ -111,6 +114,9 @@ public class CalendarService {
         if (!req.getStartAt().isBefore(req.getEndAt())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "startAt < endAt 이어야 합니다");
         }
+        if (req.getCategory() == null) { // ✅ 카테고리 필수
+            throw new ApiException(HttpStatus.BAD_REQUEST, "카테고리는 필수입니다");
+        }
     }
 
     /* ===== 시간표 연동 전용 헬퍼(추가) ===== */
@@ -133,6 +139,7 @@ public class CalendarService {
                 .type(EventType.LECTURE)
                 .ownerId(ownerId)
                 .location(location)
+                .category(EventCategory.LECTURE) // ✅ 강의 기본 카테고리
                 .build();
         return repo.save(e).getId();
     }

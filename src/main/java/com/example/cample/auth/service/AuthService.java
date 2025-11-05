@@ -1,3 +1,4 @@
+// src/main/java/com/example/cample/auth/service/AuthService.java
 package com.example.cample.auth.service;
 
 import com.example.cample.auth.domain.VerificationPurpose;
@@ -30,10 +31,11 @@ public class AuthService {
     @Value("${app.security.refresh-cookie-secure:false}")
     private boolean refreshCookieSecure;
 
-    public TokenBundle signupLocal(String name, String loginId, String email, String password, String passwordConfirm, String code, HttpServletResponse res) {
+    // name 입력을 받지 않으므로, name은 loginId로 대체 저장
+    public TokenBundle signupLocal(String loginId, String email, String password, String passwordConfirm, String code, HttpServletResponse res) {
         if (!password.equals(passwordConfirm)) throw new ApiException(HttpStatus.BAD_REQUEST, "비밀번호 확인 불일치");
         emailVerificationService.verify(email, VerificationPurpose.SIGNUP, code);
-        User u = userService.createLocalUser(loginId, name, email, password);
+        User u = userService.createLocalUser(loginId, /* name */ loginId, email, password);
         return issueTokens(u, res);
     }
 
@@ -51,7 +53,6 @@ public class AuthService {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않습니다.");
         Long uid = tokenProvider.getUserId(refreshToken);
         User u = userService.getById(uid);
-        // 필요 시 회전(rotate) 구현 가능
         return issueTokens(u, res);
     }
 

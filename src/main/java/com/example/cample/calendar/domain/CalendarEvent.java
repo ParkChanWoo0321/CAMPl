@@ -39,13 +39,18 @@ public class CalendarEvent {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
-    private EventType type; // SCHOOL or PERSONAL
+    private EventType type; // SCHOOL / PERSONAL / LECTURE
 
-    // PERSONAL일 때만 세팅, SCHOOL은 NULL
+    // PERSONAL/LECTURE일 때 소유자, SCHOOL은 NULL
     private Long ownerId;
 
     @Column(length = 100)
     private String location;
+
+    // ✅ 추가: 카테고리(강의/발표/팀플/모임)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private EventCategory category;
 
     @CreationTimestamp
     private LocalDateTime createdAt;

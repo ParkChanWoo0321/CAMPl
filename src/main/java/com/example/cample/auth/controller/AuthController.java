@@ -16,9 +16,12 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;         // ★ 추가
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/auth")
@@ -37,6 +40,23 @@ public class AuthController {
     @Value("${app.security.refresh-cookie-secure:false}")
     private boolean refreshCookieSecure;
 
+    // ✅ 로그인ID 형식 재사용(회원가입과 동일 규칙)
+    private static final Pattern LOGIN_ID_PATTERN =
+            Pattern.compile("^[a-zA-Z0-9_\\-]{4,20}$");
+
+    // ✅ ID 중복확인 API (비인증 허용 필요)
+    @GetMapping("/id/check")
+    public ResponseEntity<Map<String, Object>> checkLoginId(@RequestParam String loginId) {
+        boolean valid = loginId != null && LOGIN_ID_PATTERN.matcher(loginId).matches();
+        if (!valid) {
+            return ResponseEntity.badRequest().body(
+                    Map.of("loginId", loginId, "available", false, "reason", "INVALID_FORMAT")
+            );
+        }
+        boolean available = userService.isLoginIdAvailable(loginId);
+        return ResponseEntity.ok(Map.of("loginId", loginId, "available", available));
+    }
+
     @PostMapping("/email/send-code")
     public ResponseEntity<Void> sendCode(@Valid @RequestBody SendEmailCodeRequest req) {
         emailVerificationService.sendCode(req.email(), req.purpose());
@@ -51,8 +71,14 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<TokenResponse> signup(@Valid @RequestBody SignupRequest req, HttpServletResponse res) {
-        var tb = authService.signupLocal(req.name(), req.loginId(), req.schoolEmail(),
-                req.password(), req.passwordConfirm(), req.code(), res);
+        var tb = authService.signupLocal(
+                req.loginId(),
+                req.email(),
+                req.password(),
+                req.passwordConfirm(),
+                req.code(),
+                res
+        );
         User u = tb.user();
         return ResponseEntity.ok(new TokenResponse(
                 tb.accessToken(), u.getId(), u.getLoginId(), u.getName(), u.getEmail(), u.getProvider().name()
@@ -114,17 +140,15 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
-    // ★ 본인 계정 하드 삭제 + 리프레시 쿠키 제거
-    @PreAuthorize("isAuthenticated()") // 이 메서드는 반드시 인증 필요
+    @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/unregister")
     public ResponseEntity<Void> deleteMyAccount(@AuthenticationPrincipal CustomUserPrincipal principal,
                                                 HttpServletResponse res) {
-        // 널가드: 혹시 설정 누락 시 401로 반환
         if (principal == null) {
             return ResponseEntity.status(401).build();
         }
-        userService.deleteUserById(principal.getId()); // 하드 삭제
-        CookieUtils.addHttpOnlyCookie(res, refreshCookieName, "", 0, refreshCookieSecure, refreshCookieDomain); // 리프레시 쿠키 제거
+        userService.deleteUserById(principal.getId());
+        CookieUtils.addHttpOnlyCookie(res, refreshCookieName, "", 0, refreshCookieSecure, refreshCookieDomain);
         return ResponseEntity.noContent().build();
     }
 }

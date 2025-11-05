@@ -2,6 +2,7 @@
 package com.example.cample.calendar.dto;
 
 import com.example.cample.calendar.domain.CalendarEvent;
+import com.example.cample.calendar.domain.EventCategory;
 import com.example.cample.calendar.domain.EventType;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -30,8 +31,12 @@ public class CalendarEventDto {
     @Size(max = 100)
     private String location;
 
-    // 응답에 포함(SCHOOL/PERSONAL), 요청 시 무시됨
+    // 응답에 포함(SCHOOL/PERSONAL/LECTURE), 요청 시 무시됨
     private EventType type;
+
+    // ✅ 추가: 요청/응답에 모두 포함 (강의/발표/팀플/모임)
+    @NotNull
+    private EventCategory category;
 
     public static CalendarEventDto from(CalendarEvent e) {
         return CalendarEventDto.builder()
@@ -42,6 +47,7 @@ public class CalendarEventDto {
                 .endAt(e.getEndAt())
                 .location(e.getLocation())
                 .type(e.getType())
+                .category(e.getCategory())
                 .build();
     }
 }

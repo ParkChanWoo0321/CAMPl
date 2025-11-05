@@ -20,6 +20,13 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
+    // ✅ 로그인ID 사용 가능 여부
+    @Transactional(readOnly = true)
+    public boolean isLoginIdAvailable(String loginId) {
+        if (loginId == null || loginId.isBlank()) return false;
+        return !userRepository.existsByLoginId(loginId);
+    }
+
     public User createLocalUser(String loginId, String name, String email, String rawPassword) {
         if (userRepository.existsByLoginId(loginId))
             throw new ApiException(HttpStatus.CONFLICT, "이미 사용 중인 로그인ID");

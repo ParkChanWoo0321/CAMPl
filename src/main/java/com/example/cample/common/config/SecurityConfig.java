@@ -58,6 +58,8 @@ public class SecurityConfig {
                                 "/auth/email/**",
                                 "/auth/recovery/**"
                         ).permitAll()
+                        // ✅ 아이디 중복확인은 비인증 허용
+                        .requestMatchers(HttpMethod.GET, "/auth/id/check").permitAll()
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated()
@@ -80,7 +82,6 @@ public class SecurityConfig {
                 .toList();
 
         if (origins.size() == 1 && "*".equals(origins.get(0))) {
-            // 와일드카드 사용 시: 브라우저 정책상 credentials 불가
             cfg.setAllowedOriginPatterns(List.of("*"));
             cfg.setAllowCredentials(false);
         } else {
