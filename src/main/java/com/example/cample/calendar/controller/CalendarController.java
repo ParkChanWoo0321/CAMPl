@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;     // ✅ 추가
 import java.time.ZoneId;
 import java.util.*;
 import java.util.function.Function;
@@ -60,7 +61,7 @@ public class CalendarController {
         return ResponseEntity.noContent().build();
     }
 
-    // ✅ 새 API: 캘린더에서 특정 '날짜'를 선택했을 때 그 날의 일정만 그대로 반환
+    // 날짜 선택 시 그 날의 일정 원본 리스트
     @GetMapping("/day")
     public List<CalendarEventDto> day(
             @AuthenticationPrincipal CustomUserPrincipal me,
@@ -71,30 +72,41 @@ public class CalendarController {
         return service.list(from, to, me.getId());
     }
 
-    // ✅ 확장된 "오늘 안내" (또는 ?date=yyyy-MM-dd 테스트)
-    //    요구대로 items 제거, 장소별 개수 + 과거/다음(카테고리/제목만)만 응답
+    // 오늘(또는 특정 날짜)의 요약: 장소 집계 + 과거/다음(제목/카테고리만)
+    // asOf를 주면 그 시각을 분기점으로 시뮬레이션, 없으면 실시간 분기
     @GetMapping("/summary/today")
     public Map<String, Object> summaryToday(
             @AuthenticationPrincipal CustomUserPrincipal me,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate date // yyyy-MM-dd (옵션)
+            LocalDate date, // yyyy-MM-dd (옵션)
+
+            @RequestParam(required = false, name = "asOf")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime asOf // 예: 2025-11-05T13:00:00 (옵션)
     ) {
         ZoneId KST = ZoneId.of("Asia/Seoul");
         LocalDate target = (date != null) ? date : LocalDate.now(KST);
         LocalDateTime from = target.atStartOfDay();
         LocalDateTime to = target.plusDays(1).atStartOfDay();
 
+        // ✅ 분기 시각(pivot) 결정
+        LocalDateTime pivot = (asOf != null)
+                ? asOf
+                : (date != null
+                ? LocalDateTime.of(target, LocalTime.now(KST))
+                : LocalDateTime.now(KST));
+
         var items = service.list(from, to, me.getId());
 
-        LocalDateTime now = LocalDateTime.now(KST);
+        // ✅ 분류 규칙: past = endAt <= pivot, upcoming = endAt > pivot (진행중 포함)
         var past = items.stream()
-                .filter(e -> !e.getEndAt().isAfter(now)) // endAt <= now
+                .filter(e -> !e.getEndAt().isAfter(pivot))
                 .map(e -> Map.of("category", e.getCategory(), "title", e.getTitle()))
                 .toList();
 
         var upcoming = items.stream()
-                .filter(e -> e.getStartAt().isAfter(now)) // startAt > now
+                .filter(e -> e.getEndAt().isAfter(pivot))
                 .map(e -> Map.of("category", e.getCategory(), "title", e.getTitle()))
                 .toList();
 
