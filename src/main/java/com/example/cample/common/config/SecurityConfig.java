@@ -51,12 +51,12 @@ public class SecurityConfig {
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(new RestAuthenticationEntryPoint()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST,
-                                "/auth/login",
-                                "/auth/signup",
-                                "/auth/refresh",
-                                "/auth/logout",
-                                "/auth/email/**",
-                                "/auth/recovery/**"
+                                "/api/auth/login",
+                                "/api/auth/signup",
+                                "/api/auth/refresh",
+                                "/api/auth/logout",
+                                "/api/auth/email/**",
+                                "/api/auth/recovery/**"
                         ).permitAll()
                         // ✅ 아이디 중복확인은 비인증 허용
                         .requestMatchers(HttpMethod.GET, "/auth/id/check").permitAll()
