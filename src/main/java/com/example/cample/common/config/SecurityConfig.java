@@ -42,8 +42,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        JwtAuthenticationFilter jwtFilter =
-                new JwtAuthenticationFilter(jwtTokenProvider, userRepository);
+        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtTokenProvider, userRepository);
 
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(c -> c.configurationSource(corsSource()))
@@ -58,8 +57,11 @@ public class SecurityConfig {
                                 "/api/auth/email/**",
                                 "/api/auth/recovery/**"
                         ).permitAll()
-                        // ✅ 아이디 중복확인은 비인증 허용
-                        .requestMatchers(HttpMethod.GET, "/auth/id/check").permitAll()
+                        // 아이디 중복확인 비인증 허용(두 경로 모두 허용)
+                        .requestMatchers(HttpMethod.GET,
+                                "/auth/id/check",
+                                "/api/auth/id/check"
+                        ).permitAll()
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated()

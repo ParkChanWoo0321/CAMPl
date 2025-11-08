@@ -23,8 +23,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final String refreshCookieDomain;
     private final boolean refreshCookieSecure;
 
-    // 프론트 착지 경로 (원하는 경로로 바꿔도 됨)
-    private static final String FRONTEND_REDIRECT = "http://localhost:3000/oauth/signed-in";
+    // 프로퍼티로 주입(예: app.oauth.success-redirect)
+    private final String successRedirect;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest req, HttpServletResponse res, Authentication auth) {
@@ -41,7 +41,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
             User user = userService.upsertKakaoUser(kakaoId, email, displayName);
 
-            // 리프레시 토큰만 쿠키에 심고
+            // refresh 토큰을 HTTP-Only 쿠키로 설정
             String refresh = tokenProvider.createRefreshToken(user);
             CookieUtils.addHttpOnlyCookie(
                     res, refreshCookieName, refresh,
@@ -49,9 +49,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                     refreshCookieSecure, refreshCookieDomain
             );
 
-            // 프론트로 리다이렉트 (바디/URL에 access 토큰 노출 없음)
-            res.setStatus(HttpServletResponse.SC_FOUND); // 302
-            res.setHeader("Location", FRONTEND_REDIRECT);
+            // 설정값으로 리다이렉트
+            res.sendRedirect(successRedirect);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
