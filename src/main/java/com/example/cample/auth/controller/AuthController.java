@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
