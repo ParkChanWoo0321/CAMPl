@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;     // ✅ 추가
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.function.Function;
@@ -26,13 +26,23 @@ public class CalendarController {
 
     private final CalendarService service;
 
-    @GetMapping("/events")
+    // ✅ (유지) from/to 직접 조회
+    @GetMapping(value = "/events", params = {"from","to"})
     public List<CalendarEventDto> list(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @AuthenticationPrincipal CustomUserPrincipal me
     ) {
         return service.list(from, to, me.getId());
+    }
+
+    // ✅ (신규) 연-월(yyyy-MM)로 월간 조회: /api/calendar/events?ym=2025-12
+    @GetMapping(value = "/events", params = "ym")
+    public List<CalendarEventDto> listByMonth(
+            @RequestParam String ym,
+            @AuthenticationPrincipal CustomUserPrincipal me
+    ) {
+        return service.listByYearMonth(ym, me.getId());
     }
 
     @PostMapping("/events")
@@ -61,7 +71,6 @@ public class CalendarController {
         return ResponseEntity.noContent().build();
     }
 
-    // 날짜 선택 시 그 날의 일정 원본 리스트
     @GetMapping("/day")
     public List<CalendarEventDto> day(
             @AuthenticationPrincipal CustomUserPrincipal me,
@@ -72,25 +81,21 @@ public class CalendarController {
         return service.list(from, to, me.getId());
     }
 
-    // 오늘(또는 특정 날짜)의 요약: 장소 집계 + 과거/다음(제목/카테고리만)
-    // asOf를 주면 그 시각을 분기점으로 시뮬레이션, 없으면 실시간 분기
     @GetMapping("/summary/today")
     public Map<String, Object> summaryToday(
             @AuthenticationPrincipal CustomUserPrincipal me,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate date, // yyyy-MM-dd (옵션)
-
+            LocalDate date,
             @RequestParam(required = false, name = "asOf")
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime asOf // 예: 2025-11-05T13:00:00 (옵션)
+            LocalDateTime asOf
     ) {
         ZoneId KST = ZoneId.of("Asia/Seoul");
         LocalDate target = (date != null) ? date : LocalDate.now(KST);
         LocalDateTime from = target.atStartOfDay();
         LocalDateTime to = target.plusDays(1).atStartOfDay();
 
-        // ✅ 분기 시각(pivot) 결정
         LocalDateTime pivot = (asOf != null)
                 ? asOf
                 : (date != null
@@ -99,7 +104,6 @@ public class CalendarController {
 
         var items = service.list(from, to, me.getId());
 
-        // ✅ 분류 규칙: past = endAt <= pivot, upcoming = endAt > pivot (진행중 포함)
         var past = items.stream()
                 .filter(e -> !e.getEndAt().isAfter(pivot))
                 .map(e -> Map.of("category", e.getCategory(), "title", e.getTitle()))

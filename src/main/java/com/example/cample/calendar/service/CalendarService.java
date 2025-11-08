@@ -3,7 +3,7 @@ package com.example.cample.calendar.service;
 
 import com.example.cample.calendar.domain.CalendarEvent;
 import com.example.cample.calendar.domain.EventType;
-import com.example.cample.calendar.domain.EventCategory; // ✅ 추가
+import com.example.cample.calendar.domain.EventCategory;
 import com.example.cample.calendar.dto.CalendarEventDto;
 import com.example.cample.calendar.repo.CalendarEventRepository;
 import com.example.cample.common.exception.ApiException;
@@ -27,7 +27,6 @@ public class CalendarService {
         if (from == null || to == null || !from.isBefore(to)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "from/to 범위가 유효하지 않습니다");
         }
-        // PERSONAL + LECTURE 모두 포함해서 조회
         return repo.findIntersectWithOwnerTypes(
                         from, to, me,
                         EventType.SCHOOL,
@@ -36,6 +35,20 @@ public class CalendarService {
                 .stream()
                 .map(CalendarEventDto::from)
                 .toList();
+    }
+
+    // ✅ 연-월(yyyy-MM) 전용 월간 조회
+    @Transactional(readOnly = true)
+    public List<CalendarEventDto> listByYearMonth(String ym, Long me) {
+        YearMonth yearMonth;
+        try {
+            yearMonth = YearMonth.parse(ym); // 요구 포맷: yyyy-MM
+        } catch (Exception e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "ym 형식은 yyyy-MM 이어야 합니다");
+        }
+        LocalDateTime from = yearMonth.atDay(1).atStartOfDay();
+        LocalDateTime to = yearMonth.plusMonths(1).atDay(1).atStartOfDay();
+        return list(from, to, me);
     }
 
     @Transactional
@@ -47,10 +60,10 @@ public class CalendarService {
                 .description(req.getDescription())
                 .startAt(req.getStartAt())
                 .endAt(req.getEndAt())
-                .type(EventType.PERSONAL) // 사용자 수동 일정은 PERSONAL로 고정
+                .type(EventType.PERSONAL)
                 .ownerId(me)
                 .location(req.getLocation())
-                .category(req.getCategory()) // ✅ 카테고리 저장
+                .category(req.getCategory())
                 .build();
 
         return CalendarEventDto.from(repo.save(e));
@@ -63,7 +76,6 @@ public class CalendarService {
         CalendarEvent e = repo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "이벤트 없음"));
 
-        // 학교/강의 연동 일정은 수동 수정 금지
         if (e.getType() == EventType.SCHOOL || e.getType() == EventType.LECTURE) {
             throw new ApiException(HttpStatus.FORBIDDEN, "학교/강의 연동 일정은 수정할 수 없습니다");
         }
@@ -76,7 +88,7 @@ public class CalendarService {
         e.setStartAt(req.getStartAt());
         e.setEndAt(req.getEndAt());
         e.setLocation(req.getLocation());
-        e.setCategory(req.getCategory()); // ✅ 카테고리 수정
+        e.setCategory(req.getCategory());
 
         return CalendarEventDto.from(e);
     }
@@ -86,7 +98,6 @@ public class CalendarService {
         CalendarEvent e = repo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "이벤트 없음"));
 
-        // 학교/강의 연동 일정은 수동 삭제 금지
         if (e.getType() == EventType.SCHOOL || e.getType() == EventType.LECTURE) {
             throw new ApiException(HttpStatus.FORBIDDEN, "학교/강의 연동 일정은 삭제할 수 없습니다");
         }
@@ -114,17 +125,13 @@ public class CalendarService {
         if (!req.getStartAt().isBefore(req.getEndAt())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "startAt < endAt 이어야 합니다");
         }
-        if (req.getCategory() == null) { // ✅ 카테고리 필수
+        if (req.getCategory() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "카테고리는 필수입니다");
         }
     }
 
-    /* ===== 시간표 연동 전용 헬퍼(추가) ===== */
+    // ===== 시간표 연동 헬퍼 =====
 
-    /**
-     * 시간표에 의해 생성되는 강의 일정(LECTURE) 단건 생성.
-     * TimetableService에서만 호출하도록 의도.
-     */
     @Transactional
     public Long createLectureEvent(String title, String location,
                                    LocalDateTime start, LocalDateTime end, Long ownerId) {
@@ -139,19 +146,15 @@ public class CalendarService {
                 .type(EventType.LECTURE)
                 .ownerId(ownerId)
                 .location(location)
-                .category(EventCategory.LECTURE) // ✅ 강의 기본 카테고리
+                .category(EventCategory.LECTURE)
                 .build();
         return repo.save(e).getId();
     }
 
-    /**
-     * 시간표 교체/삭제 시 매핑된 강의 일정(여러 건) 일괄 삭제.
-     */
     @Transactional
     public void deleteEventsByIdsForOwner(List<Long> ids, Long ownerId) {
         if (ids == null || ids.isEmpty()) return;
         var events = repo.findAllById(ids);
-        // 안전장치: 본인 소유만 삭제
         boolean illegal = events.stream()
                 .anyMatch(e -> e.getOwnerId() == null || !e.getOwnerId().equals(ownerId));
         if (illegal) {
