@@ -60,7 +60,8 @@ public class SecurityConfig {
                         // 아이디 중복확인 비인증 허용(두 경로 모두 허용)
                         .requestMatchers(HttpMethod.GET,
                                 "/auth/id/check",
-                                "/api/auth/id/check"
+                                "/api/auth/id/check",
+                                "/oauth/signed-in"
                         ).permitAll()
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
