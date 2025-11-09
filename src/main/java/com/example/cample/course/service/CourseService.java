@@ -24,36 +24,88 @@ public class CourseService {
     private final CourseTimeRepository timeRepo;
     private final CourseReviewRepository reviewRepo;
 
-    // ===== 통합 검색 =====
+    // 3-argument functional interface for window calls
+    @FunctionalInterface
+    private interface WindowCaller {
+        void call(DayOfWeek d, LocalTime s, LocalTime e);
+    }
+
+    // ===== V2: 다중 year/credit + '기타만' + '4+' 지원 =====
+    @Transactional(readOnly = true)
+    public List<CourseDto> searchV2(Long categoryId,
+                                    List<String> years, boolean yearsEtcOnly,
+                                    List<String> credits,
+                                    String sort, String days, String startTime, String endTime, String ranges, String windows) {
+        return searchInternalV2(null, null, null, null,
+                categoryId, years, yearsEtcOnly, credits,
+                sort, days, startTime, endTime, ranges, windows);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CourseDto> searchByNameV2(String q, Long categoryId,
+                                          List<String> years, boolean yearsEtcOnly,
+                                          List<String> credits,
+                                          String sort, String days, String startTime, String endTime, String ranges, String windows) {
+        return searchInternalV2(q, null, null, null,
+                categoryId, years, yearsEtcOnly, credits,
+                sort, days, startTime, endTime, ranges, windows);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CourseDto> searchByProfessorV2(String professor, Long categoryId,
+                                               List<String> years, boolean yearsEtcOnly,
+                                               List<String> credits,
+                                               String sort, String days, String startTime, String endTime, String ranges, String windows) {
+        return searchInternalV2(null, professor, null, null,
+                categoryId, years, yearsEtcOnly, credits,
+                sort, days, startTime, endTime, ranges, windows);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CourseDto> searchByCourseCodeV2(String code, Long categoryId,
+                                                List<String> years, boolean yearsEtcOnly,
+                                                List<String> credits,
+                                                String sort, String days, String startTime, String endTime, String ranges, String windows) {
+        return searchInternalV2(null, null, code, null,
+                categoryId, years, yearsEtcOnly, credits,
+                sort, days, startTime, endTime, ranges, windows);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CourseDto> searchByRoomV2(String room, Long categoryId,
+                                          List<String> years, boolean yearsEtcOnly,
+                                          List<String> credits,
+                                          String sort, String days, String startTime, String endTime, String ranges, String windows) {
+        return searchInternalV2(null, null, null, room,
+                categoryId, years, yearsEtcOnly, credits,
+                sort, days, startTime, endTime, ranges, windows);
+    }
+
+    // ===== 기존 API(백워드 호환) =====
     @Transactional(readOnly = true)
     public List<CourseDto> search(Long categoryId, Integer credit, String year, String sort,
                                   String days, String startTime, String endTime, String ranges, String windows) {
         return searchInternal(null, null, null, null,
                 categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
-
-    // ===== 단일 검색 4종 =====
     @Transactional(readOnly = true)
     public List<CourseDto> searchByName(String q, Long categoryId, Integer credit, String year, String sort,
                                         String days, String startTime, String endTime, String ranges, String windows) {
         return searchInternal(q, null, null, null,
                 categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
-
     @Transactional(readOnly = true)
     public List<CourseDto> searchByProfessor(String professor, Long categoryId, Integer credit, String year, String sort,
                                              String days, String startTime, String endTime, String ranges, String windows) {
         return searchInternal(null, professor, null, null,
                 categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
-
     @Transactional(readOnly = true)
     public List<CourseDto> searchByCourseCode(String code, Long categoryId, Integer credit, String year, String sort,
                                               String days, String startTime, String endTime, String ranges, String windows) {
         return searchInternal(null, null, code, null,
                 categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
-
     @Transactional(readOnly = true)
     public List<CourseDto> searchByRoom(String room, Long categoryId, Integer credit, String year, String sort,
                                         String days, String startTime, String endTime, String ranges, String windows) {
@@ -61,19 +113,114 @@ public class CourseService {
                 categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
 
-    // ===== 내부 공통 =====
-    private List<CourseDto> searchInternal(String name, String prof, String code, String room,
-                                           Long categoryId, Integer credit, String year, String sort,
-                                           String days, String startTime, String endTime, String ranges, String windows) {
+    // ===== 내부 공통 V2 =====
+    private List<CourseDto> searchInternalV2(String name, String prof, String code, String room,
+                                             Long categoryId,
+                                             List<String> years, boolean yearsEtcOnly,
+                                             List<String> credits,
+                                             String sort, String days, String startTime, String endTime, String ranges, String windows) {
 
-        // 1) 파싱
+        // 1) 시간 파싱
         Set<DayOfWeek> daySet = parseDays(days);
         List<Range> rangeList = parseRanges(ranges);
         Range single = toRange(startTime, endTime);
         if (single != null) rangeList.add(single);
         Map<DayOfWeek, List<Range>> windowMap = parseWindows(windows);
 
-        // 2) 조합 쿼리 (합집합, 중복 제거)
+        // 2) 연도 정규화
+        LinkedHashSet<String> reqYears = normalizeYears(years);
+        boolean all14 = reqYears.containsAll(Set.of("1","2","3","4"));
+// 1,2,3,4 모두 선택 + 기타(yearsEtcOnly=true) → 전체 선택으로 간주
+        boolean allSelected = yearsEtcOnly && all14;
+
+        List<String> yearsToQuery;
+        if (allSelected) {
+            yearsEtcOnly = false;                   // 후단 '기타만' 필터 비활성화
+            yearsToQuery = Collections.singletonList(null); // year 미필터
+        } else if (reqYears.isEmpty()) {
+            // 아무 학년도 안 고른 경우: '기타만' 단독 선택을 허용하기 위해 그대로 둠
+            yearsToQuery = Collections.singletonList(null); // year 미필터
+        } else {
+            LinkedHashSet<String> tmp = new LinkedHashSet<>(reqYears);
+            if (all14) { tmp.add("모든학년"); tmp.add("전학년"); }
+            yearsToQuery = new ArrayList<>(tmp);
+        }
+
+        // 3) 학점 정규화
+        CreditFilter cf = normalizeCredits(credits); // 정수 eq + 4+ 플래그
+        List<Integer> creditEquals = (cf.eq.isEmpty() && !cf.gte4)
+                ? Collections.singletonList(null)   // credit 필터 미적용
+                : new ArrayList<>(cf.eq);
+
+        // 4) 조합 쿼리(합집합)
+        LinkedHashSet<Course> acc = new LinkedHashSet<>();
+        final String semester = SemesterConst.SEMESTER_CODE;
+
+        WindowCaller caller = (d, s, e) -> {
+            for (String y : yearsToQuery) {
+                // eq credits
+                for (Integer cEq : creditEquals) {
+                    acc.addAll(courseRepo.searchOneWindow(
+                            semester, categoryId, cEq, nullOrTrim(y),
+                            nullOrTrim(name), nullOrTrim(prof), nullOrTrim(code), nullOrTrim(room),
+                            d, s, e
+                    ));
+                }
+                // 4+ 확장은 후단 필터
+                if (cf.gte4) {
+                    List<Course> batch = courseRepo.searchOneWindow(
+                            semester, categoryId, null, nullOrTrim(y),
+                            nullOrTrim(name), nullOrTrim(prof), nullOrTrim(code), nullOrTrim(room),
+                            d, s, e
+                    );
+                    for (Course c : batch) {
+                        if (c.getCredit() != null && c.getCredit() >= 4) acc.add(c);
+                    }
+                }
+            }
+        };
+
+        if (!windowMap.isEmpty()) {
+            for (var e : windowMap.entrySet()) {
+                DayOfWeek d = e.getKey();
+                for (Range r : e.getValue()) caller.call(d, r.start(), r.end());
+            }
+        } else if (!daySet.isEmpty() && !rangeList.isEmpty()) {
+            for (DayOfWeek d : daySet) for (Range r : rangeList) caller.call(d, r.start(), r.end());
+        } else if (!daySet.isEmpty()) {
+            for (DayOfWeek d : daySet) caller.call(d, null, null);
+        } else if (!rangeList.isEmpty()) {
+            for (Range r : rangeList) caller.call(null, r.start(), r.end());
+        } else {
+            caller.call(null, null, null);
+        }
+
+        // 5) '기타만' 후단 필터
+        if (yearsEtcOnly) {
+            Set<String> base = Set.of("1", "2", "3", "4");
+            acc.removeIf(c -> {
+                String y = c.getYear();
+                return y != null && base.contains(y.trim());
+            });
+        }
+
+        // 6) 매핑 + 정렬
+        var dtos = toDtos(new ArrayList<>(acc));
+        applySort(dtos, sort);
+        return dtos;
+    }
+
+    // ===== 기존 내부 공통(단일 year/credit) =====
+    private List<CourseDto> searchInternal(String name, String prof, String code, String room,
+                                           Long categoryId, Integer credit, String year, String sort,
+                                           String days, String startTime, String endTime, String ranges, String windows) {
+
+        Set<DayOfWeek> daySet = parseDays(days);
+        List<Range> rangeList = parseRanges(ranges);
+        Range single = toRange(startTime, endTime);
+        if (single != null) rangeList.add(single);
+        Map<DayOfWeek, List<Range>> windowMap = parseWindows(windows);
+
         LinkedHashSet<Course> acc = new LinkedHashSet<>();
 
         if (!windowMap.isEmpty()) {
@@ -126,28 +273,14 @@ public class CourseService {
             ));
         }
 
-        // 3) 매핑 + 정렬
         var dtos = toDtos(new ArrayList<>(acc));
         applySort(dtos, sort);
         return dtos;
     }
 
-    // 정렬
-    private void applySort(List<CourseDto> dtos, String sortRaw) {
-        String sort = nullOrTrim(sortRaw);
-        if (sort == null || "default".equals(sort)) return;
-        switch (sort) {
-            case "code"      -> dtos.sort(Comparator.comparing(CourseDto::getCourseCode, Comparator.nullsLast(String::compareTo)));
-            case "name"      -> dtos.sort(this::compareByCustomName);
-            case "ratingAsc" -> dtos.sort(Comparator.comparing(CourseDto::getRatingAvg, Comparator.nullsFirst(Double::compareTo)));
-            case "ratingDesc"-> dtos.sort(Comparator.comparing(CourseDto::getRatingAvg, Comparator.nullsFirst(Double::compareTo)).reversed());
-            default -> {}
-        }
-    }
-
-    // 단건: 상세 + 평점 + 강의평 목록
+    // ===== 단건/리뷰 이하 동일 =====
     @Transactional(readOnly = true)
-    public CourseDto getOne(Long courseId) {
+    public CourseDto getOne(Long courseId) { /* ... 동일 ... */
         Course c = courseRepo.findById(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "강의가 존재하지 않습니다"));
         if (!SemesterConst.SEMESTER_CODE.equals(c.getSemesterCode())) {
@@ -157,12 +290,11 @@ public class CourseService {
         var s = statOf(courseId);
         var reviews = reviewRepo.findByCourseIdAndDeletedFalseOrderByCreatedAtDesc(courseId)
                 .stream().map(ReviewResponse::from).toList();
-
         return CourseDto.fromDetailed(c, times, s.avg(), s.count(), reviews);
     }
 
     @Transactional
-    public ReviewResponse upsertMyReview(Long courseId, Long userId, ReviewRequest req) {
+    public ReviewResponse upsertMyReview(Long courseId, Long userId, ReviewRequest req) { /* 동일 */
         Course c = courseRepo.findById(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "강의가 존재하지 않습니다"));
         if (!SemesterConst.SEMESTER_CODE.equals(c.getSemesterCode())) {
@@ -177,7 +309,7 @@ public class CourseService {
     }
 
     @Transactional
-    public void deleteMyReview(Long courseId, Long userId) {
+    public void deleteMyReview(Long courseId, Long userId) { /* 동일 */
         CourseReview r = reviewRepo.findByCourseIdAndUserId(courseId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "내 리뷰가 없습니다"));
         r.setDeleted(true);
@@ -191,13 +323,11 @@ public class CourseService {
     }
     private record Stat(double avg, long count) {}
 
-    // ===== 매핑/정렬 유틸 =====
-    private List<CourseDto> toDtos(List<Course> courses) {
+    private List<CourseDto> toDtos(List<Course> courses) { /* 동일 */
         if (courses.isEmpty()) return new ArrayList<>();
         var ids = courses.stream().map(Course::getId).toList();
         var times = timeRepo.findByCourseIdIn(ids).stream()
                 .collect(Collectors.groupingBy(t -> t.getCourse().getId()));
-
         Map<Long, Double> avgMap = new HashMap<>();
         Map<Long, Long> cntMap = new HashMap<>();
         for (Long id : ids) {
@@ -205,7 +335,6 @@ public class CourseService {
             avgMap.put(id, s.avg());
             cntMap.put(id, s.count());
         }
-
         return courses.stream().map(c ->
                 CourseDto.from(
                         c,
@@ -216,11 +345,22 @@ public class CourseService {
         ).collect(Collectors.toCollection(ArrayList::new));
     }
 
-    // 과목명 커스텀 정렬: 숫자 → 영어 → 한글초성 → 기타
-    private int compareByCustomName(CourseDto a, CourseDto b) {
+    private void applySort(List<CourseDto> dtos, String sortRaw) { /* 동일 */
+        String sort = nullOrTrim(sortRaw);
+        if (sort == null || "default".equals(sort)) return;
+        switch (sort) {
+            case "code"      -> dtos.sort(Comparator.comparing(CourseDto::getCourseCode, Comparator.nullsLast(String::compareTo)));
+            case "name"      -> dtos.sort(this::compareByCustomName);
+            case "ratingAsc" -> dtos.sort(Comparator.comparing(CourseDto::getRatingAvg, Comparator.nullsFirst(Double::compareTo)));
+            case "ratingDesc"-> dtos.sort(Comparator.comparing(CourseDto::getRatingAvg, Comparator.nullsFirst(Double::compareTo)).reversed());
+            default -> {}
+        }
+    }
+
+    private int compareByCustomName(CourseDto a, CourseDto b) { /* 동일 */
         return nameKey(a.getName()).compareTo(nameKey(b.getName()));
     }
-    private NameKey nameKey(String s) {
+    private NameKey nameKey(String s) { /* 동일 */
         if (s == null || s.isBlank()) return new NameKey(99, "", -1);
         char ch = s.charAt(0);
         if (Character.isDigit(ch)) {
@@ -233,7 +373,7 @@ public class CourseService {
         if (init >= 0) return new NameKey(2, s, init);
         return new NameKey(3, s, -1);
     }
-    private int initialKoreanIndex(char ch) {
+    private int initialKoreanIndex(char ch) { /* 동일 */
         if (ch < 0xAC00 || ch > 0xD7A3) return -1;
         int base = ch - 0xAC00;
         return base / 588;
@@ -247,10 +387,10 @@ public class CourseService {
         }
     }
 
-    // ===== 파싱 유틸 =====
+    // ===== 파싱/정규화 유틸 =====
     private String nullOrTrim(String s) { if (s == null) return null; s = s.trim(); return s.isEmpty() ? null : s; }
 
-    private Set<DayOfWeek> parseDays(String s) {
+    private Set<DayOfWeek> parseDays(String s) { /* 동일 */
         if (s == null || s.isBlank()) return Collections.emptySet();
         Set<DayOfWeek> out = new LinkedHashSet<>();
         for (String tok : s.split(",")) {
@@ -269,7 +409,7 @@ public class CourseService {
         return out;
     }
 
-    private List<Range> parseRanges(String s) {
+    private List<Range> parseRanges(String s) { /* 동일 */
         if (s == null || s.isBlank()) return new ArrayList<>();
         List<Range> out = new ArrayList<>();
         for (String tok : s.split(",")) {
@@ -279,7 +419,7 @@ public class CourseService {
         return out;
     }
 
-    private Map<DayOfWeek, List<Range>> parseWindows(String s) {
+    private Map<DayOfWeek, List<Range>> parseWindows(String s) { /* 동일 */
         Map<DayOfWeek, List<Range>> map = new LinkedHashMap<>();
         if (s == null || s.isBlank()) return map;
         for (String dayPart : s.split(";")) {
@@ -308,7 +448,7 @@ public class CourseService {
         return map;
     }
 
-    private Range parseRange(String s) {
+    private Range parseRange(String s) { /* 동일 */
         if (s == null || s.isBlank()) return null;
         String[] ab = s.split("-");
         if (ab.length != 2) return null;
@@ -318,7 +458,7 @@ public class CourseService {
         return new Range(a, b);
     }
 
-    private Range toRange(String start, String end) {
+    private Range toRange(String start, String end) { /* 동일 */
         if (start == null && end == null) return null;
         LocalTime s = parseTime(start);
         LocalTime e = parseTime(end);
@@ -326,7 +466,7 @@ public class CourseService {
         return new Range(s, e);
     }
 
-    private LocalTime parseTime(String s) {
+    private LocalTime parseTime(String s) { /* 동일 */
         if (s == null) return null;
         String t = s.trim();
         if (t.isEmpty()) return null;
@@ -341,4 +481,40 @@ public class CourseService {
     }
 
     private record Range(LocalTime start, LocalTime end) {}
+
+    private LinkedHashSet<String> normalizeYears(List<String> years) {
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        if (years == null) return out;
+        for (String y : years) {
+            if (y == null) continue;
+            String t = y.trim();
+            if (!t.isEmpty()) out.add(t);
+        }
+        return out;
+    }
+
+    private static final class CreditFilter {
+        final Set<Integer> eq = new LinkedHashSet<>();
+        boolean gte4 = false;
+    }
+
+    // 정수 학점만 지원 + "4+"
+    private CreditFilter normalizeCredits(List<String> tokens) {
+        CreditFilter cf = new CreditFilter();
+        if (tokens == null) return cf;
+        for (String s : tokens) {
+            if (s == null) continue;
+            String t = s.trim();
+            if (t.isEmpty()) continue;
+            if (t.equalsIgnoreCase("4+") || t.equalsIgnoreCase("4plus")) {
+                cf.gte4 = true;
+                continue;
+            }
+            try {
+                int v = (t.contains(".")) ? (int) Double.parseDouble(t) : Integer.parseInt(t);
+                if (String.valueOf(v).equals(t) || t.equals(v + ".0")) cf.eq.add(v);
+            } catch (NumberFormatException ignore) {}
+        }
+        return cf;
+    }
 }
