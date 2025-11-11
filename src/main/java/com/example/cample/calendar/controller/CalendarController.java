@@ -79,6 +79,7 @@ public class CalendarController {
     }
 
     // lectures / events / ddays
+    // CalendarController.summaryToday
     @GetMapping("/summary/today")
     public Map<String, Object> summaryToday(
             @AuthenticationPrincipal CustomUserPrincipal me,
@@ -100,30 +101,35 @@ public class CalendarController {
 
         var items = service.list(from, to, me.getId());
 
+        // LECTURE
         var lectures = items.stream()
                 .filter(e -> e.getType() != null && e.getType().name().equals("LECTURE"))
-                .map(e -> Map.of(
-                        "courseName", e.getTitle(),
-                        "location", e.getLocation(),
-                        "dayOfWeek", e.getStartAt().getDayOfWeek().name(),
-                        "startAt", e.getStartAt(),
-                        "endAt", e.getEndAt()
-                ))
+                .map(e -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("courseName", e.getTitle());
+                    if (e.getLocation() != null && !e.getLocation().isBlank()) m.put("location", e.getLocation());
+                    m.put("dayOfWeek", e.getStartAt().getDayOfWeek().name());
+                    m.put("startAt", e.getStartAt());
+                    m.put("endAt", e.getEndAt());
+                    return m;
+                })
                 .toList();
 
-        // ✅ SCHOOL 포함 + origin 제공
+        // PERSONAL + SCHOOL (null 안전)
         var events = items.stream()
                 .filter(e -> e.getType() != null &&
                         (e.getType().name().equals("PERSONAL") || e.getType().name().equals("SCHOOL")))
-                .map(e -> Map.of(
-                        "title", e.getTitle(),
-                        "location", e.getLocation(),
-                        "startAt", e.getStartAt(),
-                        "endAt", e.getEndAt(),
-                        "category", e.getCategory(),
-                        "important", e.getImportant(),
-                        "origin", e.getType().name().equals("SCHOOL") ? "SCHOOL" : "MANUAL"
-                ))
+                .map(e -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("title", e.getTitle());
+                    if (e.getLocation() != null && !e.getLocation().isBlank()) m.put("location", e.getLocation());
+                    m.put("startAt", e.getStartAt());
+                    m.put("endAt", e.getEndAt());
+                    if (e.getCategory() != null) m.put("category", e.getCategory());
+                    if (e.getImportant() != null) m.put("important", e.getImportant());
+                    m.put("origin", e.getType().name().equals("SCHOOL") ? "SCHOOL" : "MANUAL");
+                    return m;
+                })
                 .toList();
 
         var importantUpcoming = service.importantUpcoming(me.getId(), pivot);
@@ -131,11 +137,11 @@ public class CalendarController {
                 .map(e -> {
                     long d = ChronoUnit.DAYS.between(pivot.toLocalDate(), e.getStartAt().toLocalDate());
                     String label = (d == 0) ? "D-DAY" : "D-" + d;
-                    return Map.of(
-                            "title", e.getTitle(),
-                            "targetDate", e.getStartAt().toLocalDate().toString(),
-                            "dDay", label
-                    );
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("title", e.getTitle());
+                    m.put("targetDate", e.getStartAt().toLocalDate().toString());
+                    m.put("dDay", label);
+                    return m;
                 })
                 .toList();
 
