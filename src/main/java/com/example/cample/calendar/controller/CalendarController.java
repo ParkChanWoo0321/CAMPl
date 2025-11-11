@@ -18,7 +18,6 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/calendar")
@@ -79,7 +78,7 @@ public class CalendarController {
         return service.list(from, to, me.getId());
     }
 
-    // 새 응답 스키마: lectures/events/ddays 로 분리
+    // lectures / events / ddays
     @GetMapping("/summary/today")
     public Map<String, Object> summaryToday(
             @AuthenticationPrincipal CustomUserPrincipal me,
@@ -112,15 +111,18 @@ public class CalendarController {
                 ))
                 .toList();
 
+        // ✅ SCHOOL 포함 + origin 제공
         var events = items.stream()
-                .filter(e -> e.getType() != null && e.getType().name().equals("PERSONAL"))
+                .filter(e -> e.getType() != null &&
+                        (e.getType().name().equals("PERSONAL") || e.getType().name().equals("SCHOOL")))
                 .map(e -> Map.of(
                         "title", e.getTitle(),
                         "location", e.getLocation(),
                         "startAt", e.getStartAt(),
                         "endAt", e.getEndAt(),
                         "category", e.getCategory(),
-                        "important", e.getImportant()
+                        "important", e.getImportant(),
+                        "origin", e.getType().name().equals("SCHOOL") ? "SCHOOL" : "MANUAL"
                 ))
                 .toList();
 
