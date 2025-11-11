@@ -15,9 +15,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+
 
 @RestController
 @RequiredArgsConstructor
@@ -26,7 +26,6 @@ public class CalendarController {
 
     private final CalendarService service;
 
-    // ✅ (유지) from/to 직접 조회
     @GetMapping(value = "/events", params = {"from","to"})
     public List<CalendarEventDto> list(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
@@ -36,7 +35,6 @@ public class CalendarController {
         return service.list(from, to, me.getId());
     }
 
-    // ✅ (신규) 연-월(yyyy-MM)로 월간 조회: /api/calendar/events?ym=2025-12
     @GetMapping(value = "/events", params = "ym")
     public List<CalendarEventDto> listByMonth(
             @RequestParam String ym,
@@ -81,6 +79,7 @@ public class CalendarController {
         return service.list(from, to, me.getId());
     }
 
+    // 새 응답 스키마: lectures/events/ddays 로 분리
     @GetMapping("/summary/today")
     public Map<String, Object> summaryToday(
             @AuthenticationPrincipal CustomUserPrincipal me,
@@ -98,37 +97,53 @@ public class CalendarController {
 
         LocalDateTime pivot = (asOf != null)
                 ? asOf
-                : (date != null
-                ? LocalDateTime.of(target, LocalTime.now(KST))
-                : LocalDateTime.now(KST));
+                : (date != null ? LocalDateTime.of(target, LocalTime.now(KST)) : LocalDateTime.now(KST));
 
         var items = service.list(from, to, me.getId());
 
-        var past = items.stream()
-                .filter(e -> !e.getEndAt().isAfter(pivot))
-                .map(e -> Map.of("category", e.getCategory(), "title", e.getTitle()))
+        var lectures = items.stream()
+                .filter(e -> e.getType() != null && e.getType().name().equals("LECTURE"))
+                .map(e -> Map.of(
+                        "courseName", e.getTitle(),
+                        "location", e.getLocation(),
+                        "dayOfWeek", e.getStartAt().getDayOfWeek().name(),
+                        "startAt", e.getStartAt(),
+                        "endAt", e.getEndAt()
+                ))
                 .toList();
 
-        var upcoming = items.stream()
-                .filter(e -> e.getEndAt().isAfter(pivot))
-                .map(e -> Map.of("category", e.getCategory(), "title", e.getTitle()))
+        var events = items.stream()
+                .filter(e -> e.getType() != null && e.getType().name().equals("PERSONAL"))
+                .map(e -> Map.of(
+                        "title", e.getTitle(),
+                        "location", e.getLocation(),
+                        "startAt", e.getStartAt(),
+                        "endAt", e.getEndAt(),
+                        "category", e.getCategory(),
+                        "important", e.getImportant()
+                ))
                 .toList();
 
-        var locationCounts = items.stream()
-                .map(CalendarEventDto::getLocation)
-                .filter(loc -> loc != null && !loc.isBlank())
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
-                .entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(e -> Map.of("location", e.getKey(), "count", e.getValue()))
+        var importantUpcoming = service.importantUpcoming(me.getId(), pivot);
+        var ddays = importantUpcoming.stream()
+                .map(e -> {
+                    long d = ChronoUnit.DAYS.between(pivot.toLocalDate(), e.getStartAt().toLocalDate());
+                    String label = (d == 0) ? "D-DAY" : "D-" + d;
+                    return Map.of(
+                            "title", e.getTitle(),
+                            "targetDate", e.getStartAt().toLocalDate().toString(),
+                            "dDay", label
+                    );
+                })
                 .toList();
 
         return Map.of(
                 "date", target.toString(),
-                "count", items.size(),
-                "locationCounts", locationCounts,
-                "past", past,
-                "upcoming", upcoming
+                "lectureCount", lectures.size(),
+                "eventCount", events.size(),
+                "lectures", lectures,
+                "events", events,
+                "ddays", ddays
         );
     }
 }

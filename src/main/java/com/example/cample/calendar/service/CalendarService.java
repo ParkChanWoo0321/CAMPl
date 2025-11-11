@@ -37,12 +37,11 @@ public class CalendarService {
                 .toList();
     }
 
-    // ✅ 연-월(yyyy-MM) 전용 월간 조회
     @Transactional(readOnly = true)
     public List<CalendarEventDto> listByYearMonth(String ym, Long me) {
         YearMonth yearMonth;
         try {
-            yearMonth = YearMonth.parse(ym); // 요구 포맷: yyyy-MM
+            yearMonth = YearMonth.parse(ym); // yyyy-MM
         } catch (Exception e) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "ym 형식은 yyyy-MM 이어야 합니다");
         }
@@ -64,6 +63,7 @@ public class CalendarService {
                 .ownerId(me)
                 .location(req.getLocation())
                 .category(req.getCategory())
+                .important(Boolean.TRUE.equals(req.getImportant()))
                 .build();
 
         return CalendarEventDto.from(repo.save(e));
@@ -89,6 +89,7 @@ public class CalendarService {
         e.setEndAt(req.getEndAt());
         e.setLocation(req.getLocation());
         e.setCategory(req.getCategory());
+        e.setImportant(Boolean.TRUE.equals(req.getImportant()));
 
         return CalendarEventDto.from(e);
     }
@@ -115,6 +116,12 @@ public class CalendarService {
         return list(from, to, me);
     }
 
+    @Transactional(readOnly = true)
+    public List<CalendarEventDto> importantUpcoming(Long me, LocalDateTime now) {
+        return repo.findImportantUpcoming(me, EventType.PERSONAL, now)
+                .stream().map(CalendarEventDto::from).toList();
+    }
+
     private void validateUpsert(CalendarEventDto req) {
         if (req.getTitle() == null || req.getTitle().isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "제목은 필수입니다");
@@ -127,6 +134,9 @@ public class CalendarService {
         }
         if (req.getCategory() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "카테고리는 필수입니다");
+        }
+        if (req.getImportant() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "important는 필수입니다");
         }
     }
 
@@ -147,6 +157,7 @@ public class CalendarService {
                 .ownerId(ownerId)
                 .location(location)
                 .category(EventCategory.LECTURE)
+                .important(false)
                 .build();
         return repo.save(e).getId();
     }

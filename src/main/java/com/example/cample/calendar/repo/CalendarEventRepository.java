@@ -12,7 +12,6 @@ import java.util.Optional;
 
 public interface CalendarEventRepository extends JpaRepository<CalendarEvent, Long> {
 
-    // LECTURE까지 포함해서 조회하는 버전
     @Query("""
            select e
            from CalendarEvent e
@@ -33,4 +32,20 @@ public interface CalendarEventRepository extends JpaRepository<CalendarEvent, Lo
     );
 
     Optional<CalendarEvent> findByIdAndOwnerId(Long id, Long ownerId);
+
+    // 중요 일정 D-Day 용(개인 일정 기준)
+    @Query("""
+           select e
+           from CalendarEvent e
+           where e.ownerId = :ownerId
+             and e.type = :type
+             and e.important = true
+             and e.startAt >= :now
+           order by e.startAt asc
+           """)
+    List<CalendarEvent> findImportantUpcoming(
+            @Param("ownerId") Long ownerId,
+            @Param("type") EventType type,
+            @Param("now") LocalDateTime now
+    );
 }

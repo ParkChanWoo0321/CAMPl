@@ -34,11 +34,22 @@ public class CalendarEventDto {
     // 응답에 포함(SCHOOL/PERSONAL/LECTURE), 요청 시 무시됨
     private EventType type;
 
-    // ✅ 추가: 요청/응답에 모두 포함 (강의/발표/팀플/모임)
     @NotNull
     private EventCategory category;
 
+    @NotNull
+    private Boolean important;   // 중요 여부
+
+    // 파생 응답 필드(저장 안 함): TIMETABLE | MANUAL | SCHOOL
+    private String origin;
+
     public static CalendarEventDto from(CalendarEvent e) {
+        String origin = switch (e.getType()) {
+            case LECTURE -> "TIMETABLE";
+            case PERSONAL -> "MANUAL";
+            case SCHOOL -> "SCHOOL";
+        };
+
         return CalendarEventDto.builder()
                 .id(e.getId())
                 .title(e.getTitle())
@@ -48,6 +59,8 @@ public class CalendarEventDto {
                 .location(e.getLocation())
                 .type(e.getType())
                 .category(e.getCategory())
+                .important(e.isImportant())
+                .origin(origin)
                 .build();
     }
 }

@@ -14,7 +14,8 @@ import java.time.LocalDateTime;
         indexes = {
                 @Index(name = "idx_event_range", columnList = "startAt,endAt"),
                 @Index(name = "idx_owner_start", columnList = "ownerId,startAt"),
-                @Index(name = "idx_type_start", columnList = "type,startAt")
+                @Index(name = "idx_type_start", columnList = "type,startAt"),
+                @Index(name = "idx_owner_important_start", columnList = "ownerId,important,startAt")
         }
 )
 @Getter @Setter
@@ -47,10 +48,13 @@ public class CalendarEvent {
     @Column(length = 100)
     private String location;
 
-    // ✅ 추가: 카테고리(강의/발표/팀플/모임)
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private EventCategory category;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean important = false;   // 중요 일정 플래그
 
     @CreationTimestamp
     private LocalDateTime createdAt;
