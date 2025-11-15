@@ -2,7 +2,6 @@
 package com.example.cample.auth.service;
 
 import com.example.cample.auth.domain.VerificationPurpose;
-import com.example.cample.auth.service.EmailVerificationService;
 import com.example.cample.common.exception.ApiException;
 import com.example.cample.common.util.CookieUtils;
 import com.example.cample.security.JwtTokenProvider;
