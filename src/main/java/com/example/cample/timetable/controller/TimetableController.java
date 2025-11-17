@@ -9,7 +9,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -22,10 +21,9 @@ public class TimetableController {
     @GetMapping
     public Map<String, Object> myTimetable(
             @org.springframework.security.core.annotation.AuthenticationPrincipal CustomUserPrincipal me) {
-        List<Long> courseIds = service.myCourseIds(me.getId());
         return Map.of(
                 "semester", SemesterConst.SEMESTER_CODE,
-                "courseIds", courseIds
+                "courses", service.myCourses(me.getId())
         );
     }
 

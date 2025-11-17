@@ -6,6 +6,7 @@ import com.example.cample.common.constant.SemesterConst;
 import com.example.cample.common.exception.ApiException;
 import com.example.cample.course.domain.Course;
 import com.example.cample.course.domain.CourseTime;
+import com.example.cample.course.dto.CourseDto;
 import com.example.cample.course.repo.CourseRepository;
 import com.example.cample.course.repo.CourseTimeRepository;
 import com.example.cample.timetable.domain.*;
@@ -16,7 +17,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.cample.timetable.dto.ResolveResult;  // ▶ 우리의 DTO 사용
 import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,10 +31,40 @@ public class TimetableService {
     private final CourseTimeRepository timeRepo;
     private final CalendarService calendarService;
 
+    // 기존: courseId 목록만 리턴
     @Transactional(readOnly = true)
     public List<Long> myCourseIds(Long userId) {
         return itemRepo.findByUserIdAndSemesterCode(userId, SemesterConst.SEMESTER_CODE)
                 .stream().map(TimetableItem::getCourseId).toList();
+    }
+
+    // 새로 추가: 내 시간표 과목 전체 정보(CourseDto) 리턴
+    @Transactional(readOnly = true)
+    public List<CourseDto> myCourses(Long userId) {
+        List<TimetableItem> items =
+                itemRepo.findByUserIdAndSemesterCode(userId, SemesterConst.SEMESTER_CODE);
+
+        if (items.isEmpty()) return List.of();
+
+        List<Long> courseIds = items.stream()
+                .map(TimetableItem::getCourseId)
+                .toList();
+
+        List<Course> courses = courseRepo.findAllById(courseIds);
+        if (courses.isEmpty()) return List.of();
+
+        Map<Long, List<CourseTime>> timesByCourseId = timeRepo.findByCourseIdIn(courseIds).stream()
+                .collect(Collectors.groupingBy(ct -> ct.getCourse().getId()));
+
+        // 리뷰/평점은 timetable 화면에서 필요 없으므로 null 로 둠
+        return courses.stream()
+                .map(c -> CourseDto.from(
+                        c,
+                        timesByCourseId.getOrDefault(c.getId(), List.of()),
+                        null,
+                        null
+                ))
+                .toList();
     }
 
     // 1) 시도: 충돌 없으면 즉시 추가, 있으면 conflict=true 만 반환
