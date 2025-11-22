@@ -102,25 +102,25 @@ public class CourseController {
     // ===== 강의평 조회(정렬별) =====
 
     // 최신순(createdAt DESC)
-    @GetMapping("/{courseId}/reviews/latest")
+    @GetMapping("/reviews/latest/{courseId}")
     public List<ReviewResponse> getReviewsLatest(@PathVariable Long courseId) {
         return service.getReviewsSorted(courseId, "latest");
     }
 
     // 오래된순(createdAt ASC)
-    @GetMapping("/{courseId}/reviews/oldest")
+    @GetMapping("/reviews/oldest/{courseId}")
     public List<ReviewResponse> getReviewsOldest(@PathVariable Long courseId) {
         return service.getReviewsSorted(courseId, "oldest");
     }
 
     // 별점 높은순(rating DESC → createdAt DESC)
-    @GetMapping("/{courseId}/reviews/rating-high")
+    @GetMapping("/reviews/rating-high/{courseId}")
     public List<ReviewResponse> getReviewsRatingHigh(@PathVariable Long courseId) {
         return service.getReviewsSorted(courseId, "ratingDesc");
     }
 
     // 별점 낮은순(rating ASC → createdAt ASC)
-    @GetMapping("/{courseId}/reviews/rating-low")
+    @GetMapping("/reviews/rating-low/{courseId}")
     public List<ReviewResponse> getReviewsRatingLow(@PathVariable Long courseId) {
         return service.getReviewsSorted(courseId, "ratingAsc");
     }
