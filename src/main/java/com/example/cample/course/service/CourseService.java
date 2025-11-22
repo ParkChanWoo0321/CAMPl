@@ -7,6 +7,7 @@ import com.example.cample.course.domain.*;
 import com.example.cample.course.dto.*;
 import com.example.cample.course.repo.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -88,24 +89,28 @@ public class CourseService {
         return searchInternal(null, null, null, null,
                 categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
+
     @Transactional(readOnly = true)
     public List<CourseDto> searchByName(String q, Long categoryId, Integer credit, String year, String sort,
                                         String days, String startTime, String endTime, String ranges, String windows) {
         return searchInternal(q, null, null, null,
                 categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
+
     @Transactional(readOnly = true)
     public List<CourseDto> searchByProfessor(String professor, Long categoryId, Integer credit, String year, String sort,
                                              String days, String startTime, String endTime, String ranges, String windows) {
         return searchInternal(null, professor, null, null,
                 categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
+
     @Transactional(readOnly = true)
     public List<CourseDto> searchByCourseCode(String code, Long categoryId, Integer credit, String year, String sort,
                                               String days, String startTime, String endTime, String ranges, String windows) {
         return searchInternal(null, null, code, null,
                 categoryId, credit, year, sort, days, startTime, endTime, ranges, windows);
     }
+
     @Transactional(readOnly = true)
     public List<CourseDto> searchByRoom(String room, Long categoryId, Integer credit, String year, String sort,
                                         String days, String startTime, String endTime, String ranges, String windows) {
@@ -129,8 +134,8 @@ public class CourseService {
 
         // 2) 연도 정규화
         LinkedHashSet<String> reqYears = normalizeYears(years);
-        boolean all14 = reqYears.containsAll(Set.of("1","2","3","4"));
-// 1,2,3,4 모두 선택 + 기타(yearsEtcOnly=true) → 전체 선택으로 간주
+        boolean all14 = reqYears.containsAll(Set.of("1", "2", "3", "4"));
+        // 1,2,3,4 모두 선택 + 기타(yearsEtcOnly=true) → 전체 선택으로 간주
         boolean allSelected = yearsEtcOnly && all14;
 
         List<String> yearsToQuery;
@@ -142,7 +147,10 @@ public class CourseService {
             yearsToQuery = Collections.singletonList(null); // year 미필터
         } else {
             LinkedHashSet<String> tmp = new LinkedHashSet<>(reqYears);
-            if (all14) { tmp.add("모든학년"); tmp.add("전학년"); }
+            if (all14) {
+                tmp.add("모든학년");
+                tmp.add("전학년");
+            }
             yearsToQuery = new ArrayList<>(tmp);
         }
 
@@ -278,9 +286,9 @@ public class CourseService {
         return dtos;
     }
 
-    // ===== 단건/리뷰 이하 동일 =====
+    // ===== 단건/리뷰 =====
     @Transactional(readOnly = true)
-    public CourseDto getOne(Long courseId) { /* ... 동일 ... */
+    public CourseDto getOne(Long courseId) {
         Course c = courseRepo.findById(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "강의가 존재하지 않습니다"));
         if (!SemesterConst.SEMESTER_CODE.equals(c.getSemesterCode())) {
@@ -293,8 +301,43 @@ public class CourseService {
         return CourseDto.fromDetailed(c, times, s.avg(), s.count(), reviews);
     }
 
+    // 정렬 전용 리뷰 조회
+    @Transactional(readOnly = true)
+    public List<ReviewResponse> getReviewsSorted(Long courseId, String sortKey) {
+        Course c = courseRepo.findById(courseId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "강의가 존재하지 않습니다"));
+        if (!SemesterConst.SEMESTER_CODE.equals(c.getSemesterCode())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "학기 불일치");
+        }
+
+        Sort sort;
+        switch (sortKey) {
+            case "oldest" ->
+                    sort = Sort.by(Sort.Order.asc("createdAt"));
+
+            case "ratingDesc" ->
+                    sort = Sort.by(Sort.Order.desc("rating"))
+                            .and(Sort.by(Sort.Order.desc("createdAt")));
+
+            case "ratingAsc" ->
+                    sort = Sort.by(Sort.Order.asc("rating"))
+                            .and(Sort.by(Sort.Order.asc("createdAt")));
+
+            case "latest" ->
+                    sort = Sort.by(Sort.Order.desc("createdAt"));
+
+            default ->
+                    sort = Sort.by(Sort.Order.desc("createdAt"));
+        }
+
+        return reviewRepo.findByCourseIdAndDeletedFalse(courseId, sort)
+                .stream()
+                .map(ReviewResponse::from)
+                .toList();
+    }
+
     @Transactional
-    public ReviewResponse upsertMyReview(Long courseId, Long userId, ReviewRequest req) { /* 동일 */
+    public ReviewResponse upsertMyReview(Long courseId, Long userId, ReviewRequest req) {
         Course c = courseRepo.findById(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "강의가 존재하지 않습니다"));
         if (!SemesterConst.SEMESTER_CODE.equals(c.getSemesterCode())) {
@@ -308,8 +351,24 @@ public class CourseService {
         return ReviewResponse.from(reviewRepo.save(r));
     }
 
+    // 수정 전용(없으면 404)
     @Transactional
-    public void deleteMyReview(Long courseId, Long userId) { /* 동일 */
+    public ReviewResponse updateMyReview(Long courseId, Long userId, ReviewRequest req) {
+        Course c = courseRepo.findById(courseId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "강의가 존재하지 않습니다"));
+        if (!SemesterConst.SEMESTER_CODE.equals(c.getSemesterCode())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "학기 불일치");
+        }
+        CourseReview r = reviewRepo.findByCourseIdAndUserId(courseId, userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "내 리뷰가 없습니다"));
+        r.setRating(req.getRating());
+        r.setContent(req.getContent());
+        r.setDeleted(false);
+        return ReviewResponse.from(reviewRepo.save(r));
+    }
+
+    @Transactional
+    public void deleteMyReview(Long courseId, Long userId) {
         CourseReview r = reviewRepo.findByCourseIdAndUserId(courseId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "내 리뷰가 없습니다"));
         r.setDeleted(true);
@@ -321,9 +380,10 @@ public class CourseService {
         double avg = (s != null && s.getAvg() != null) ? s.getAvg() : 0.0;
         return new Stat(avg, count);
     }
+
     private record Stat(double avg, long count) {}
 
-    private List<CourseDto> toDtos(List<Course> courses) { /* 동일 */
+    private List<CourseDto> toDtos(List<Course> courses) {
         if (courses.isEmpty()) return new ArrayList<>();
         var ids = courses.stream().map(Course::getId).toList();
         var times = timeRepo.findByCourseIdIn(ids).stream()
@@ -345,52 +405,70 @@ public class CourseService {
         ).collect(Collectors.toCollection(ArrayList::new));
     }
 
-    private void applySort(List<CourseDto> dtos, String sortRaw) { /* 동일 */
+    private void applySort(List<CourseDto> dtos, String sortRaw) {
         String sort = nullOrTrim(sortRaw);
         if (sort == null || "default".equals(sort)) return;
         switch (sort) {
-            case "code"      -> dtos.sort(Comparator.comparing(CourseDto::getCourseCode, Comparator.nullsLast(String::compareTo)));
-            case "name"      -> dtos.sort(this::compareByCustomName);
-            case "ratingAsc" -> dtos.sort(Comparator.comparing(CourseDto::getRatingAvg, Comparator.nullsFirst(Double::compareTo)));
-            case "ratingDesc"-> dtos.sort(Comparator.comparing(CourseDto::getRatingAvg, Comparator.nullsFirst(Double::compareTo)).reversed());
-            default -> {}
+            case "code" ->
+                    dtos.sort(Comparator.comparing(CourseDto::getCourseCode, Comparator.nullsLast(String::compareTo)));
+            case "name" -> dtos.sort(this::compareByCustomName);
+            case "ratingAsc" ->
+                    dtos.sort(Comparator.comparing(CourseDto::getRatingAvg, Comparator.nullsFirst(Double::compareTo)));
+            case "ratingDesc" ->
+                    dtos.sort(Comparator.comparing(CourseDto::getRatingAvg, Comparator.nullsFirst(Double::compareTo)).reversed());
+            default -> {
+            }
         }
     }
 
-    private int compareByCustomName(CourseDto a, CourseDto b) { /* 동일 */
+    private int compareByCustomName(CourseDto a, CourseDto b) {
         return nameKey(a.getName()).compareTo(nameKey(b.getName()));
     }
-    private NameKey nameKey(String s) { /* 동일 */
+
+    private NameKey nameKey(String s) {
         if (s == null || s.isBlank()) return new NameKey(99, "", -1);
         char ch = s.charAt(0);
         if (Character.isDigit(ch)) {
             int num = 0;
-            for (int i = 0; i < s.length() && Character.isDigit(s.charAt(i)); i++) num = num * 10 + (s.charAt(i) - '0');
+            for (int i = 0; i < s.length() && Character.isDigit(s.charAt(i)); i++)
+                num = num * 10 + (s.charAt(i) - '0');
             return new NameKey(0, s, num);
         }
-        if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')) return new NameKey(1, s.toUpperCase(Locale.ROOT), -1);
+        if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'))
+            return new NameKey(1, s.toUpperCase(Locale.ROOT), -1);
         int init = initialKoreanIndex(ch);
         if (init >= 0) return new NameKey(2, s, init);
         return new NameKey(3, s, -1);
     }
-    private int initialKoreanIndex(char ch) { /* 동일 */
+
+    private int initialKoreanIndex(char ch) {
         if (ch < 0xAC00 || ch > 0xD7A3) return -1;
         int base = ch - 0xAC00;
         return base / 588;
     }
+
     private record NameKey(int group, String norm, int aux) implements Comparable<NameKey> {
-        @Override public int compareTo(NameKey o) {
+        @Override
+        public int compareTo(NameKey o) {
             if (group != o.group) return Integer.compare(group, o.group);
-            if (group == 0) { int c = Integer.compare(aux, o.aux); if (c != 0) return c; }
-            int c = norm.compareTo(o.norm); if (c != 0) return c;
+            if (group == 0) {
+                int c = Integer.compare(aux, o.aux);
+                if (c != 0) return c;
+            }
+            int c = norm.compareTo(o.norm);
+            if (c != 0) return c;
             return Integer.compare(aux, o.aux);
         }
     }
 
     // ===== 파싱/정규화 유틸 =====
-    private String nullOrTrim(String s) { if (s == null) return null; s = s.trim(); return s.isEmpty() ? null : s; }
+    private String nullOrTrim(String s) {
+        if (s == null) return null;
+        s = s.trim();
+        return s.isEmpty() ? null : s;
+    }
 
-    private Set<DayOfWeek> parseDays(String s) { /* 동일 */
+    private Set<DayOfWeek> parseDays(String s) {
         if (s == null || s.isBlank()) return Collections.emptySet();
         Set<DayOfWeek> out = new LinkedHashSet<>();
         for (String tok : s.split(",")) {
@@ -403,13 +481,14 @@ public class CourseService {
                 case "FRI" -> out.add(DayOfWeek.FRIDAY);
                 case "SAT" -> out.add(DayOfWeek.SATURDAY);
                 case "SUN" -> out.add(DayOfWeek.SUNDAY);
-                default -> {}
+                default -> {
+                }
             }
         }
         return out;
     }
 
-    private List<Range> parseRanges(String s) { /* 동일 */
+    private List<Range> parseRanges(String s) {
         if (s == null || s.isBlank()) return new ArrayList<>();
         List<Range> out = new ArrayList<>();
         for (String tok : s.split(",")) {
@@ -419,7 +498,7 @@ public class CourseService {
         return out;
     }
 
-    private Map<DayOfWeek, List<Range>> parseWindows(String s) { /* 동일 */
+    private Map<DayOfWeek, List<Range>> parseWindows(String s) {
         Map<DayOfWeek, List<Range>> map = new LinkedHashMap<>();
         if (s == null || s.isBlank()) return map;
         for (String dayPart : s.split(";")) {
@@ -448,7 +527,7 @@ public class CourseService {
         return map;
     }
 
-    private Range parseRange(String s) { /* 동일 */
+    private Range parseRange(String s) {
         if (s == null || s.isBlank()) return null;
         String[] ab = s.split("-");
         if (ab.length != 2) return null;
@@ -458,7 +537,7 @@ public class CourseService {
         return new Range(a, b);
     }
 
-    private Range toRange(String start, String end) { /* 동일 */
+    private Range toRange(String start, String end) {
         if (start == null && end == null) return null;
         LocalTime s = parseTime(start);
         LocalTime e = parseTime(end);
@@ -466,17 +545,19 @@ public class CourseService {
         return new Range(s, e);
     }
 
-    private LocalTime parseTime(String s) { /* 동일 */
+    private LocalTime parseTime(String s) {
         if (s == null) return null;
         String t = s.trim();
         if (t.isEmpty()) return null;
         try {
             if (t.contains(":")) return LocalTime.parse(t);
-            if (t.length() == 4) return LocalTime.of(
-                    Integer.parseInt(t.substring(0, 2)),
-                    Integer.parseInt(t.substring(2, 4))
-            );
-        } catch (Exception ignored) {}
+            if (t.length() == 4)
+                return LocalTime.of(
+                        Integer.parseInt(t.substring(0, 2)),
+                        Integer.parseInt(t.substring(2, 4))
+                );
+        } catch (Exception ignored) {
+        }
         return null;
     }
 
@@ -513,7 +594,8 @@ public class CourseService {
             try {
                 int v = (t.contains(".")) ? (int) Double.parseDouble(t) : Integer.parseInt(t);
                 if (String.valueOf(v).equals(t) || t.equals(v + ".0")) cf.eq.add(v);
-            } catch (NumberFormatException ignore) {}
+            } catch (NumberFormatException ignore) {
+            }
         }
         return cf;
     }

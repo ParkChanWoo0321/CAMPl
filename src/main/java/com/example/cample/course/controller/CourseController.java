@@ -93,18 +93,54 @@ public class CourseController {
         );
     }
 
-    // 단건: 상세 + 평점 + 강의평 목록
+    // 단건: 상세 + 평점 + 강의평 목록(기본: 최신순)
     @GetMapping("/{courseId}")
     public CourseDto getOne(@PathVariable Long courseId) {
         return service.getOne(courseId);
     }
 
-    // 리뷰 작성/수정, 삭제(유지)
+    // ===== 강의평 조회(정렬별) =====
+
+    // 최신순(createdAt DESC)
+    @GetMapping("/{courseId}/reviews/latest")
+    public List<ReviewResponse> getReviewsLatest(@PathVariable Long courseId) {
+        return service.getReviewsSorted(courseId, "latest");
+    }
+
+    // 오래된순(createdAt ASC)
+    @GetMapping("/{courseId}/reviews/oldest")
+    public List<ReviewResponse> getReviewsOldest(@PathVariable Long courseId) {
+        return service.getReviewsSorted(courseId, "oldest");
+    }
+
+    // 별점 높은순(rating DESC → createdAt DESC)
+    @GetMapping("/{courseId}/reviews/rating-high")
+    public List<ReviewResponse> getReviewsRatingHigh(@PathVariable Long courseId) {
+        return service.getReviewsSorted(courseId, "ratingDesc");
+    }
+
+    // 별점 낮은순(rating ASC → createdAt ASC)
+    @GetMapping("/{courseId}/reviews/rating-low")
+    public List<ReviewResponse> getReviewsRatingLow(@PathVariable Long courseId) {
+        return service.getReviewsSorted(courseId, "ratingAsc");
+    }
+
+    // ===== 강의평 작성/수정/삭제 =====
+
+    // 생성 + 업서트(기존 유지)
     @PostMapping("/reviews/{courseId}")
     public ReviewResponse upsertMyReview(@PathVariable Long courseId,
                                          @Valid @RequestBody ReviewRequest req,
                                          @AuthenticationPrincipal CustomUserPrincipal me) {
         return service.upsertMyReview(courseId, me.getId(), req);
+    }
+
+    // 수정 전용(내 리뷰 없으면 404)
+    @PutMapping("/reviews/{courseId}")
+    public ReviewResponse updateMyReview(@PathVariable Long courseId,
+                                         @Valid @RequestBody ReviewRequest req,
+                                         @AuthenticationPrincipal CustomUserPrincipal me) {
+        return service.updateMyReview(courseId, me.getId(), req);
     }
 
     @DeleteMapping("/reviews/me/{courseId}")

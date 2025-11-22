@@ -2,6 +2,7 @@
 package com.example.cample.course.repo;
 
 import com.example.cample.course.domain.CourseReview;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
@@ -12,8 +13,11 @@ public interface CourseReviewRepository extends JpaRepository<CourseReview, Long
 
     Optional<CourseReview> findByCourseIdAndUserId(Long courseId, Long userId);
 
-    // 상세 조회에서 사용할 가시(visible) 리뷰 전체 목록
+    // 상세 조회에서 사용할 가시(visible) 리뷰 전체 목록 - 기본: 최신순
     List<CourseReview> findByCourseIdAndDeletedFalseOrderByCreatedAtDesc(Long courseId);
+
+    // 정렬용(동적 Sort)
+    List<CourseReview> findByCourseIdAndDeletedFalse(Long courseId, Sort sort);
 
     // 평점 요약(평균/개수)
     interface CountAvg {
