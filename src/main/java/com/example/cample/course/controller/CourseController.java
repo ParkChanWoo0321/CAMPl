@@ -100,29 +100,30 @@ public class CourseController {
     }
 
     // ===== 강의평 조회(정렬별) =====
+    // 아래 4개 모두 "과목 정보 + 정렬된 리뷰 목록"을 CourseDto로 반환
 
     // 최신순(createdAt DESC)
     @GetMapping("/reviews/latest/{courseId}")
-    public List<ReviewResponse> getReviewsLatest(@PathVariable Long courseId) {
-        return service.getReviewsSorted(courseId, "latest");
+    public CourseDto getReviewsLatest(@PathVariable Long courseId) {
+        return service.getOneWithSortedReviews(courseId, "latest");
     }
 
     // 오래된순(createdAt ASC)
     @GetMapping("/reviews/oldest/{courseId}")
-    public List<ReviewResponse> getReviewsOldest(@PathVariable Long courseId) {
-        return service.getReviewsSorted(courseId, "oldest");
+    public CourseDto getReviewsOldest(@PathVariable Long courseId) {
+        return service.getOneWithSortedReviews(courseId, "oldest");
     }
 
     // 별점 높은순(rating DESC → createdAt DESC)
     @GetMapping("/reviews/rating-high/{courseId}")
-    public List<ReviewResponse> getReviewsRatingHigh(@PathVariable Long courseId) {
-        return service.getReviewsSorted(courseId, "ratingDesc");
+    public CourseDto getReviewsRatingHigh(@PathVariable Long courseId) {
+        return service.getOneWithSortedReviews(courseId, "ratingDesc");
     }
 
     // 별점 낮은순(rating ASC → createdAt ASC)
     @GetMapping("/reviews/rating-low/{courseId}")
-    public List<ReviewResponse> getReviewsRatingLow(@PathVariable Long courseId) {
-        return service.getReviewsSorted(courseId, "ratingAsc");
+    public CourseDto getReviewsRatingLow(@PathVariable Long courseId) {
+        return service.getOneWithSortedReviews(courseId, "ratingAsc");
     }
 
     // ===== 강의평 작성/수정/삭제 =====

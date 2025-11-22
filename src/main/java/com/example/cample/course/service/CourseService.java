@@ -301,39 +301,39 @@ public class CourseService {
         return CourseDto.fromDetailed(c, times, s.avg(), s.count(), reviews);
     }
 
-    // 정렬 전용 리뷰 조회
+    // 정렬 전용: 과목 정보 + 정렬된 리뷰 목록
     @Transactional(readOnly = true)
-    public List<ReviewResponse> getReviewsSorted(Long courseId, String sortKey) {
+    public CourseDto getOneWithSortedReviews(Long courseId, String sortKey) {
         Course c = courseRepo.findById(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "강의가 존재하지 않습니다"));
         if (!SemesterConst.SEMESTER_CODE.equals(c.getSemesterCode())) {
             throw new ApiException(HttpStatus.NOT_FOUND, "학기 불일치");
         }
+        var times = timeRepo.findByCourseId(courseId);
+        var s = statOf(courseId);
 
         Sort sort;
         switch (sortKey) {
             case "oldest" ->
                     sort = Sort.by(Sort.Order.asc("createdAt"));
-
             case "ratingDesc" ->
                     sort = Sort.by(Sort.Order.desc("rating"))
                             .and(Sort.by(Sort.Order.desc("createdAt")));
-
             case "ratingAsc" ->
                     sort = Sort.by(Sort.Order.asc("rating"))
                             .and(Sort.by(Sort.Order.asc("createdAt")));
-
             case "latest" ->
                     sort = Sort.by(Sort.Order.desc("createdAt"));
-
             default ->
                     sort = Sort.by(Sort.Order.desc("createdAt"));
         }
 
-        return reviewRepo.findByCourseIdAndDeletedFalse(courseId, sort)
+        var reviews = reviewRepo.findByCourseIdAndDeletedFalse(courseId, sort)
                 .stream()
                 .map(ReviewResponse::from)
                 .toList();
+
+        return CourseDto.fromDetailed(c, times, s.avg(), s.count(), reviews);
     }
 
     @Transactional
