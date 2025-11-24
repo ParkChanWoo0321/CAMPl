@@ -49,6 +49,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(new RestAuthenticationEntryPoint()))
                 .authorizeHttpRequests(auth -> auth
+                        // 인증 없이 허용되는 POST
                         .requestMatchers(HttpMethod.POST,
                                 "/api/auth/login",
                                 "/api/auth/signup",
@@ -57,14 +58,20 @@ public class SecurityConfig {
                                 "/api/auth/email/**",
                                 "/api/auth/recovery/**"
                         ).permitAll()
-                        // 아이디 중복확인 비인증 허용(두 경로 모두 허용)
+                        // 인증 없이 허용되는 GET
                         .requestMatchers(HttpMethod.GET,
                                 "/auth/id/check",
                                 "/api/auth/id/check",
-                                "/oauth/signed-in"
+                                "/oauth/signed-in",
+                                // 업로드된 이미지 접근 (static resource)
+                                "/files/**",
+                                "/api/files/**"
                         ).permitAll()
+                        // OAuth2 콜백
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                        // CORS preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // 나머지는 인증 필요
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(o -> o
@@ -92,8 +99,8 @@ public class SecurityConfig {
             cfg.setAllowCredentials(true);
         }
 
-        cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
-        cfg.setAllowedHeaders(List.of("Authorization","Content-Type","X-Requested-With","Accept","Origin"));
+        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"));
         cfg.setExposedHeaders(List.of("Location"));
 
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
