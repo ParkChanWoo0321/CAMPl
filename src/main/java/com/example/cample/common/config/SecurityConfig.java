@@ -56,7 +56,9 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/logout",
                                 "/api/auth/email/**",
-                                "/api/auth/recovery/**"
+                                "/api/auth/recovery/**",
+                                // 장소 사진 업로드 (토큰 없이 허용)
+                                "/api/place-images/upload"
                         ).permitAll()
                         // 인증 없이 허용되는 GET
                         .requestMatchers(HttpMethod.GET,
