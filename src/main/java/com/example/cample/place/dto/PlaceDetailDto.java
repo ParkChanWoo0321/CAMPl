@@ -19,8 +19,6 @@ public class PlaceDetailDto {
     private String name;
     private String imageUrl;
     private String address;
-    private Double latitude;
-    private Double longitude;
 
     private List<PlaceMenuDto> menus;
 
@@ -30,8 +28,6 @@ public class PlaceDetailDto {
                 .name(p.getName())
                 .imageUrl(p.getImageUrl())
                 .address(p.getAddress())
-                .latitude(p.getLatitude())
-                .longitude(p.getLongitude())
                 .menus(menuList.stream()
                         .map(PlaceMenuDto::from)
                         .collect(Collectors.toList()))
