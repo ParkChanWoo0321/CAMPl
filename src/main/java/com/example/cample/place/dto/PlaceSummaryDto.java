@@ -17,6 +17,7 @@ public class PlaceSummaryDto {
     private PlaceType type;
     private String imageUrl;
     private String address;
+    private Integer distanceMeters; // m 단위 거리(없으면 null)
 
     public static PlaceSummaryDto from(Place p) {
         return PlaceSummaryDto.builder()
@@ -25,6 +26,18 @@ public class PlaceSummaryDto {
                 .type(p.getType())
                 .imageUrl(p.getImageUrl())
                 .address(p.getAddress())
+                .distanceMeters(null)
+                .build();
+    }
+
+    public static PlaceSummaryDto from(Place p, Integer distanceMeters) {
+        return PlaceSummaryDto.builder()
+                .id(p.getId())
+                .name(p.getName())
+                .type(p.getType())
+                .imageUrl(p.getImageUrl())
+                .address(p.getAddress())
+                .distanceMeters(distanceMeters)
                 .build();
     }
 }

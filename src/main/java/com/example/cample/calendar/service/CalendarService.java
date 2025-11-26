@@ -2,17 +2,21 @@
 package com.example.cample.calendar.service;
 
 import com.example.cample.calendar.domain.CalendarEvent;
-import com.example.cample.calendar.domain.EventType;
 import com.example.cample.calendar.domain.EventCategory;
+import com.example.cample.calendar.domain.EventType;
 import com.example.cample.calendar.dto.CalendarEventDto;
 import com.example.cample.calendar.repo.CalendarEventRepository;
 import com.example.cample.common.exception.ApiException;
+import com.example.cample.place.domain.PlaceType;
+import com.example.cample.place.dto.PlaceSummaryDto;
+import com.example.cample.place.repo.PlaceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -20,6 +24,8 @@ import java.util.List;
 public class CalendarService {
 
     private final CalendarEventRepository repo;
+    private final PlaceRepository placeRepository;
+
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     @Transactional(readOnly = true)
@@ -172,5 +178,48 @@ public class CalendarService {
             throw new ApiException(HttpStatus.FORBIDDEN, "본인 일정만 삭제할 수 있습니다");
         }
         repo.deleteAllByIdInBatch(ids);
+    }
+
+    // ===== 메인 화면용 카페 추천 =====
+
+    @Transactional(readOnly = true)
+    public List<PlaceSummaryDto> getStudyPlaces(Double baseLat, Double baseLon) {
+        var cafes = placeRepository.findByType(PlaceType.CAFE);
+        if (cafes.isEmpty()) {
+            return List.of();
+        }
+
+        Collections.shuffle(cafes); // 랜덤 정렬
+        return cafes.stream()
+                .limit(2)
+                .map(p -> {
+                    Integer distance = calcDistanceMeters(
+                            baseLat, baseLon,
+                            p.getLatitude(), p.getLongitude()
+                    );
+                    return PlaceSummaryDto.from(p, distance);
+                })
+                .toList();
+    }
+
+    private Integer calcDistanceMeters(Double baseLat, Double baseLon,
+                                       Double targetLat, Double targetLon) {
+        if (baseLat == null || baseLon == null ||
+                targetLat == null || targetLon == null) {
+            return null; // 위치 정보 없으면 거리 계산 안 함
+        }
+
+        double R = 6371000.0; // 지구 반지름 (m)
+        double dLat = Math.toRadians(targetLat - baseLat);
+        double dLon = Math.toRadians(targetLon - baseLon);
+        double rLat1 = Math.toRadians(baseLat);
+        double rLat2 = Math.toRadians(targetLat);
+
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(rLat1) * Math.cos(rLat2)
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return (int) Math.round(R * c);
     }
 }

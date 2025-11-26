@@ -78,8 +78,7 @@ public class CalendarController {
         return service.list(from, to, me.getId());
     }
 
-    // lectures / events / ddays
-    // CalendarController.summaryToday
+    // lectures / events / ddays + studyPlaces(카페 2개)
     @GetMapping("/summary/today")
     public Map<String, Object> summaryToday(
             @AuthenticationPrincipal CustomUserPrincipal me,
@@ -88,7 +87,9 @@ public class CalendarController {
             LocalDate date,
             @RequestParam(required = false, name = "asOf")
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime asOf
+            LocalDateTime asOf,
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lon
     ) {
         ZoneId KST = ZoneId.of("Asia/Seoul");
         LocalDate target = (date != null) ? date : LocalDate.now(KST);
@@ -145,13 +146,17 @@ public class CalendarController {
                 })
                 .toList();
 
+        // 카페 2개 추천 + 거리 계산
+        var studyPlaces = service.getStudyPlaces(lat, lon);
+
         return Map.of(
                 "date", target.toString(),
                 "lectureCount", lectures.size(),
                 "eventCount", events.size(),
                 "lectures", lectures,
                 "events", events,
-                "ddays", ddays
+                "ddays", ddays,
+                "studyPlaces", studyPlaces
         );
     }
 }
