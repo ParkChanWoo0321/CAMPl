@@ -29,6 +29,7 @@ public class PlaceRecommendService {
 
         // 1) 기본 후보: 현재는 전체 장소
         List<PlaceSummaryDto> candidates = placeService.findAllSummaries();
+        Collections.shuffle(candidates);
         if (candidates.isEmpty()) {
             log.info("No candidates found. Return empty list.");
             return List.of();

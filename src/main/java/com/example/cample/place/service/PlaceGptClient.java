@@ -59,23 +59,49 @@ public class PlaceGptClient {
 
             // 2) 프롬프트
             String prompt = """
-                    너는 사용자의 상황에 맞는 장소를 고르는 추천 엔진이다.
-                    중요한 규칙:
-                    - 반드시 '후보 목록' 안에 있는 장소(id 기준)에서만 골라야 한다.
-                    - 새로운 장소를 상상해서 만들면 안 된다.
-                    - 추천 개수만큼 id를 고르고, JSON 배열 형식으로만 응답해야 한다.
-                    - 응답 예시: [1, 5, 9]
-                    
-                    입력 정보:
+                    너는 대학 캠퍼스 주변의 식당/카페/술집을 추천하는 엔진이다.
+
+                    [후보 데이터 설명]
+                    - 각 장소 객체는 {id, name, type, address} 형식이다.
+                    - type은 "RESTAURANT"(식당), "CAFE"(카페), "BAR"(술집) 중 하나이다.
+
+                    [반드시 지켜야 할 규칙]
+                    1. 반드시 '후보 목록' 안에 있는 장소(id 기준)에서만 골라라.
+                       새로운 장소를 상상해서 만들면 안 된다.
+                    2. 추천 개수만큼 id만 골라서 JSON 배열 형식으로만 응답해야 한다.
+                       예시: [1, 5, 9]
+                    3. 아래의 일정 타입 / 함께 가는 사람 규칙을 따라 type을 선택하라.
+
+                    [일정 타입별 기본 우선순위]
+                    - "팀플", "과제", "미팅":
+                      * 공부/회의 목적이므로 CAFE 타입을 최우선으로 고른다.
+                      * RESTAURANT는 필요할 때만 선택하고 BAR는 절대 선택하지 마라.
+                    - "식사":
+                      * RESTAURANT 타입을 최우선으로 고른다.
+                      * 적절한 RESTAURANT가 부족하면 CAFE를 보조로 선택할 수 있다.
+                    - "휴식":
+                      * 기본적으로 CAFE를 우선 추천한다.
+                      * 동기/선배/후배와 함께라면 BAR도 선택할 수 있다.
+
+                    [함께 가는 사람 규칙]
+                    - "교수님":
+                      * BAR는 절대 선택하지 말고, CAFE 또는 RESTAURANT만 선택하라.
+                    - "혼자":
+                      * 팀플/과제/미팅/휴식이라면 조용한 CAFE(type=CAFE)를 우선 고려하라.
+
+                    4. 같은 조건으로 여러 번 호출되더라도 항상 같은 조합만 나오지 않도록,
+                       후보들 중에서 다양하게 조합을 만들도록 노력하라.
+
+                    [입력 정보]
                     - 일정 타입: %s
                     - 함께 가는 사람: %s
                     - 추천 개수: %d
-                    
+
                     아래는 후보 목록이다 (JSON 배열, 각 객체는 {id, name, type, address}):
                     %s
-                    
-                    위 후보 목록을 보고, 조건에 가장 잘 맞는 place id들을 골라라.
-                    JSON 배열 이외의 다른 텍스트는 절대 포함하지 마라.
+
+                    위 규칙을 모두 고려하여 조건에 가장 잘 맞는 place id들을 골라라.
+                    반드시 JSON 배열 하나만 응답하고, 다른 텍스트나 설명은 절대 포함하지 마라.
                     """.formatted(scheduleType, withWhom, limit, candidatesJson);
 
             // 3) Chat Completions 요청 body
@@ -91,7 +117,8 @@ public class PlaceGptClient {
             Map<String, Object> body = new HashMap<>();
             body.put("model", model);
             body.put("messages", List.of(messageSys, messageUser));
-            body.put("temperature", 0.4);
+            // 조금 더 다양하게 추천되도록 온도 조정
+            body.put("temperature", 0.7);
 
             // 4) HTTP 호출
             HttpHeaders headers = new HttpHeaders();
