@@ -3,6 +3,8 @@ package com.example.cample.calendar.controller;
 
 import com.example.cample.calendar.dto.CalendarEventDto;
 import com.example.cample.calendar.service.CalendarService;
+import com.example.cample.place.domain.Place;
+import com.example.cample.place.repo.PlaceRepository;
 import com.example.cample.security.model.CustomUserPrincipal;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
@@ -24,6 +27,7 @@ import java.util.*;
 public class CalendarController {
 
     private final CalendarService service;
+    private final PlaceRepository placeRepository;
 
     @GetMapping(value = "/events", params = {"from","to"})
     public List<CalendarEventDto> list(
@@ -78,7 +82,7 @@ public class CalendarController {
         return service.list(from, to, me.getId());
     }
 
-    // lectures / events / ddays + studyPlaces(카페 2개)
+    // lectures / events / ddays + placeMarkers(지도) + studyPlaces(카페 2개)
     @GetMapping("/summary/today")
     public Map<String, Object> summaryToday(
             @AuthenticationPrincipal CustomUserPrincipal me,
@@ -146,7 +150,10 @@ public class CalendarController {
                 })
                 .toList();
 
-        // 카페 2개 추천 + 거리 계산
+        // 오늘 일정 기준 장소별 마커 계산
+        var placeMarkers = buildPlaceMarkers(items);
+
+        // 메인 화면 하단 "과제하기 좋아요!" 카페 2개
         var studyPlaces = service.getStudyPlaces(lat, lon);
 
         return Map.of(
@@ -156,7 +163,80 @@ public class CalendarController {
                 "lectures", lectures,
                 "events", events,
                 "ddays", ddays,
+                "placeMarkerCount", placeMarkers.size(),
+                "placeMarkers", placeMarkers,
                 "studyPlaces", studyPlaces
         );
+    }
+
+    // "[H01] 이학관 307" -> "[H01] 이학관"
+    // "세이커피" -> "세이커피"
+    private String extractMarkerKey(String location) {
+        if (location == null) return "";
+        String trimmed = location.trim();
+        int lastSpace = trimmed.lastIndexOf(' ');
+        if (lastSpace <= 0) {
+            return trimmed;
+        }
+        return trimmed.substring(0, lastSpace).trim();
+    }
+
+    private List<Map<String, Object>> buildPlaceMarkers(List<CalendarEventDto> items) {
+        // 1) 오늘 일정에 등장하는 location → markerKey 세트
+        Set<String> markerKeys = items.stream()
+                .map(CalendarEventDto::getLocation)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(this::extractMarkerKey)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+
+        if (markerKeys.isEmpty()) {
+            return List.of();
+        }
+
+        // 2) Place 에서 이름으로 조회
+        List<Place> places = placeRepository.findByNameIn(markerKeys);
+        if (places.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Place> placeMap = places.stream()
+                .filter(p -> p.getLatitude() != null && p.getLongitude() != null)
+                .collect(Collectors.toMap(
+                        Place::getName,
+                        p -> p
+                ));
+
+        if (placeMap.isEmpty()) {
+            return List.of();
+        }
+
+        // 3) 장소별 일정 개수 집계
+        Map<String, Map<String, Object>> agg = new LinkedHashMap<>();
+
+        for (CalendarEventDto e : items) {
+            String loc = e.getLocation();
+            if (loc == null || loc.isBlank()) continue;
+
+            String key = extractMarkerKey(loc.trim());
+            Place place = placeMap.get(key);
+            if (place == null) continue;
+
+            Map<String, Object> m = agg.get(key);
+            if (m == null) {
+                m = new LinkedHashMap<>();
+                m.put("name", key);
+                m.put("latitude", place.getLatitude());
+                m.put("longitude", place.getLongitude());
+                m.put("count", 0);
+                agg.put(key, m);
+            }
+            int cnt = (int) m.get("count");
+            m.put("count", cnt + 1);
+        }
+
+        return new ArrayList<>(agg.values());
     }
 }

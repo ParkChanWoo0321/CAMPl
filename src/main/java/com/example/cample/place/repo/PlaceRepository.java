@@ -5,6 +5,7 @@ import com.example.cample.place.domain.Place;
 import com.example.cample.place.domain.PlaceType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface PlaceRepository extends JpaRepository<Place, Long> {
@@ -14,4 +15,7 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
 
     // 여러 타입 한 번에 조회 (예: RESTAURANT + CAFE)
     List<Place> findByTypeIn(List<PlaceType> types);
+
+    // 이름 목록으로 조회(건물/카페 등 마커용)
+    List<Place> findByNameIn(Collection<String> names);
 }
