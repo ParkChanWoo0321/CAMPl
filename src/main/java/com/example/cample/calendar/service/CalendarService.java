@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -180,7 +181,7 @@ public class CalendarService {
         repo.deleteAllByIdInBatch(ids);
     }
 
-    // ===== 메인 화면용 카페 추천 =====
+    // ===== 메인 화면용 카페 추천 (기존) =====
 
     @Transactional(readOnly = true)
     public List<PlaceSummaryDto> getStudyPlaces(Double baseLat, Double baseLon) {
@@ -199,6 +200,32 @@ public class CalendarService {
                     );
                     return PlaceSummaryDto.from(p, distance);
                 })
+                .toList();
+    }
+
+    // ===== 맵 페이지용 주변 시설 3곳 =====
+
+    @Transactional(readOnly = true)
+    public List<PlaceSummaryDto> getNearbyPlaces(Double baseLat, Double baseLon, int limit) {
+        var places = placeRepository.findAll();
+        if (places.isEmpty()) {
+            return List.of();
+        }
+
+        return places.stream()
+                .filter(p -> p.getLatitude() != null && p.getLongitude() != null)
+                .map(p -> {
+                    Integer distance = calcDistanceMeters(
+                            baseLat, baseLon,
+                            p.getLatitude(), p.getLongitude()
+                    );
+                    return PlaceSummaryDto.from(p, distance);
+                })
+                .sorted(Comparator.comparing(
+                        PlaceSummaryDto::getDistanceMeters,
+                        Comparator.nullsLast(Integer::compareTo)
+                ))
+                .limit(limit)
                 .toList();
     }
 

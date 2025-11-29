@@ -82,7 +82,7 @@ public class CalendarController {
         return service.list(from, to, me.getId());
     }
 
-    // lectures / events / ddays + placeMarkers(지도) + studyPlaces(카페 2개)
+    // 홈 화면용 오늘 요약(기존) - 그대로 사용
     @GetMapping("/summary/today")
     public Map<String, Object> summaryToday(
             @AuthenticationPrincipal CustomUserPrincipal me,
@@ -166,6 +166,71 @@ public class CalendarController {
                 "placeMarkerCount", placeMarkers.size(),
                 "placeMarkers", placeMarkers,
                 "studyPlaces", studyPlaces
+        );
+    }
+
+    // 맵 페이지 전용 API (지도 마커 + 지난 일정/다음 일정 + 주변 시설 3곳)
+    @GetMapping("/map")
+    public Map<String, Object> mapOverview(
+            @AuthenticationPrincipal CustomUserPrincipal me,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate date,
+            @RequestParam(required = false, name = "asOf")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime asOf,
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lon
+    ) {
+        ZoneId KST = ZoneId.of("Asia/Seoul");
+        LocalDate target = (date != null) ? date : LocalDate.now(KST);
+        LocalDateTime from = target.atStartOfDay();
+        LocalDateTime to = target.plusDays(1).atStartOfDay();
+
+        LocalDateTime pivot = (asOf != null)
+                ? asOf
+                : (date != null ? LocalDateTime.of(target, LocalTime.now(KST)) : LocalDateTime.now(KST));
+
+        var items = service.list(from, to, me.getId());
+
+        // 지도 마커용 집계
+        var placeMarkers = buildPlaceMarkers(items);
+
+        // 지난 일정 / 다음 일정 분리
+        var pastEvents = new ArrayList<Map<String, Object>>();
+        var upcomingEvents = new ArrayList<Map<String, Object>>();
+
+        for (CalendarEventDto e : items) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", e.getId());
+            m.put("title", e.getTitle());
+            if (e.getLocation() != null && !e.getLocation().isBlank()) {
+                m.put("location", e.getLocation());
+            }
+            m.put("startAt", e.getStartAt());
+            m.put("endAt", e.getEndAt());
+            if (e.getCategory() != null) m.put("category", e.getCategory());
+            if (e.getType() != null) m.put("type", e.getType());
+            if (e.getOrigin() != null) m.put("origin", e.getOrigin());
+
+            // 종료 시각이 pivot 이전/같으면 지난 일정, 이후면 다음 일정
+            if (!e.getEndAt().isAfter(pivot)) {
+                pastEvents.add(m);
+            } else {
+                upcomingEvents.add(m);
+            }
+        }
+
+        // 주변 시설 3곳 (현재 위치 기준)
+        var nearbyPlaces = service.getNearbyPlaces(lat, lon, 3);
+
+        return Map.of(
+                "date", target.toString(),
+                "placeMarkerCount", placeMarkers.size(),
+                "placeMarkers", placeMarkers,
+                "pastEvents", pastEvents,
+                "upcomingEvents", upcomingEvents,
+                "nearbyPlaces", nearbyPlaces
         );
     }
 
