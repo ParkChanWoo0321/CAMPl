@@ -82,7 +82,7 @@ public class CalendarController {
         return service.list(from, to, me.getId());
     }
 
-    // 홈 화면용 오늘 요약(기존) - 그대로 사용
+    // 홈 화면용 오늘 요약
     @GetMapping("/summary/today")
     public Map<String, Object> summaryToday(
             @AuthenticationPrincipal CustomUserPrincipal me,
@@ -120,7 +120,7 @@ public class CalendarController {
                 })
                 .toList();
 
-        // PERSONAL + SCHOOL (null 안전)
+        // PERSONAL + SCHOOL
         var events = items.stream()
                 .filter(e -> e.getType() != null &&
                         (e.getType().name().equals("PERSONAL") || e.getType().name().equals("SCHOOL")))
@@ -150,10 +150,7 @@ public class CalendarController {
                 })
                 .toList();
 
-        // 오늘 일정 기준 장소별 마커 계산
         var placeMarkers = buildPlaceMarkers(items);
-
-        // 메인 화면 하단 "과제하기 좋아요!" 카페 2개
         var studyPlaces = service.getStudyPlaces(lat, lon);
 
         return Map.of(
@@ -169,7 +166,7 @@ public class CalendarController {
         );
     }
 
-    // 맵 페이지 전용 API (지도 마커 + 지난 일정/다음 일정 + 주변 시설 3곳)
+    // 맵 페이지 전용 API (지도 마커 + 지난 일정/다음 일정 + 주변 시설 3곳 + 그 날 전체 강의/일정)
     @GetMapping("/map/{lat}/{lon}")
     public Map<String, Object> mapOverview(
             @AuthenticationPrincipal CustomUserPrincipal me,
@@ -193,6 +190,39 @@ public class CalendarController {
 
         var items = service.list(from, to, me.getId());
 
+        // 그 날의 강의 전체
+        var lectures = items.stream()
+                .filter(e -> e.getType() != null && e.getType().name().equals("LECTURE"))
+                .map(e -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("courseName", e.getTitle());
+                    if (e.getLocation() != null && !e.getLocation().isBlank()) m.put("location", e.getLocation());
+                    m.put("dayOfWeek", e.getStartAt().getDayOfWeek().name());
+                    m.put("startAt", e.getStartAt());
+                    m.put("endAt", e.getEndAt());
+                    return m;
+                })
+                .toList();
+
+        // 그 날의 일정 전체(학교+개인)
+        var dayEvents = items.stream()
+                .filter(e -> e.getType() != null &&
+                        (e.getType().name().equals("PERSONAL") || e.getType().name().equals("SCHOOL")))
+                .map(e -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", e.getId());
+                    m.put("title", e.getTitle());
+                    if (e.getLocation() != null && !e.getLocation().isBlank()) m.put("location", e.getLocation());
+                    m.put("startAt", e.getStartAt());
+                    m.put("endAt", e.getEndAt());
+                    if (e.getCategory() != null) m.put("category", e.getCategory());
+                    if (e.getImportant() != null) m.put("important", e.getImportant());
+                    if (e.getType() != null) m.put("type", e.getType());
+                    if (e.getOrigin() != null) m.put("origin", e.getOrigin());
+                    return m;
+                })
+                .toList();
+
         // 지도 마커용 집계
         var placeMarkers = buildPlaceMarkers(items);
 
@@ -210,6 +240,7 @@ public class CalendarController {
             m.put("startAt", e.getStartAt());
             m.put("endAt", e.getEndAt());
             if (e.getCategory() != null) m.put("category", e.getCategory());
+            if (e.getImportant() != null) m.put("important", e.getImportant());
             if (e.getType() != null) m.put("type", e.getType());
             if (e.getOrigin() != null) m.put("origin", e.getOrigin());
 
@@ -221,7 +252,7 @@ public class CalendarController {
             }
         }
 
-        // 주변 시설 3곳 (현재 위치 기준)
+        // 주변 시설 3곳 (현재 위치 기준, 식당/카페/술집만)
         var nearbyPlaces = service.getNearbyPlaces(lat, lon, 3);
 
         return Map.of(
@@ -230,7 +261,9 @@ public class CalendarController {
                 "placeMarkers", placeMarkers,
                 "pastEvents", pastEvents,
                 "upcomingEvents", upcomingEvents,
-                "nearbyPlaces", nearbyPlaces
+                "nearbyPlaces", nearbyPlaces,
+                "lectures", lectures,
+                "events", dayEvents
         );
     }
 
@@ -242,19 +275,15 @@ public class CalendarController {
         String trimmed = location.trim();
         if (trimmed.isEmpty()) return "";
 
-        // [H7] -> [H07] 같이 한 자리수를 두 자리로 보정
         trimmed = normalizeBuildingCode(trimmed);
 
-        // 공백 기준으로 분리
         String[] parts = trimmed.split("\\s+");
         if (parts.length == 1) {
-            // 단어 한 개면 그대로 (건물만 있는 경우)
             return trimmed;
         }
 
         String last = parts[parts.length - 1];
 
-        // 마지막 토큰에 숫자가 들어 있으면 "호수/번호"라고 보고 제거
         if (last.matches(".*\\d.*")) {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < parts.length - 1; i++) {
@@ -264,7 +293,6 @@ public class CalendarController {
             return sb.toString().trim();
         }
 
-        // 마지막 토큰이 숫자 없으면 전체를 건물 이름으로 사용
         return trimmed;
     }
 
@@ -282,7 +310,6 @@ public class CalendarController {
     }
 
     private List<Map<String, Object>> buildPlaceMarkers(List<CalendarEventDto> items) {
-        // 1) 오늘 일정에 등장하는 location → markerKey 세트
         Set<String> markerKeys = items.stream()
                 .map(CalendarEventDto::getLocation)
                 .filter(Objects::nonNull)
@@ -296,7 +323,6 @@ public class CalendarController {
             return List.of();
         }
 
-        // 2) Place 에서 이름으로 조회
         List<Place> places = placeRepository.findByNameIn(markerKeys);
         if (places.isEmpty()) {
             return List.of();
@@ -313,7 +339,6 @@ public class CalendarController {
             return List.of();
         }
 
-        // 3) 장소별 일정 개수 집계
         Map<String, Map<String, Object>> agg = new LinkedHashMap<>();
 
         for (CalendarEventDto e : items) {

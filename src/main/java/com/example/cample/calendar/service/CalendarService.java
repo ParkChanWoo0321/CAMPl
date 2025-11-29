@@ -203,11 +203,12 @@ public class CalendarService {
                 .toList();
     }
 
-    // ===== 맵 페이지용 주변 시설 3곳 =====
+    // ===== 맵 페이지용 주변 시설 3곳 (식당/카페/술집만) =====
 
     @Transactional(readOnly = true)
     public List<PlaceSummaryDto> getNearbyPlaces(Double baseLat, Double baseLon, int limit) {
-        var places = placeRepository.findAll();
+        var types = List.of(PlaceType.RESTAURANT, PlaceType.CAFE, PlaceType.BAR);
+        var places = placeRepository.findByTypeIn(types);
         if (places.isEmpty()) {
             return List.of();
         }
@@ -233,10 +234,10 @@ public class CalendarService {
                                        Double targetLat, Double targetLon) {
         if (baseLat == null || baseLon == null ||
                 targetLat == null || targetLon == null) {
-            return null; // 위치 정보 없으면 거리 계산 안 함
+            return null;
         }
 
-        double R = 6371000.0; // 지구 반지름 (m)
+        double R = 6371000.0;
         double dLat = Math.toRadians(targetLat - baseLat);
         double dLon = Math.toRadians(targetLon - baseLon);
         double rLat1 = Math.toRadians(baseLat);
