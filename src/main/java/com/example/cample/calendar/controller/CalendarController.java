@@ -170,17 +170,17 @@ public class CalendarController {
     }
 
     // 맵 페이지 전용 API (지도 마커 + 지난 일정/다음 일정 + 주변 시설 3곳)
-    @GetMapping("/map")
+    @GetMapping("/map/{lat}/{lon}")
     public Map<String, Object> mapOverview(
             @AuthenticationPrincipal CustomUserPrincipal me,
+            @PathVariable Double lat,
+            @PathVariable Double lon,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate date,
             @RequestParam(required = false, name = "asOf")
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime asOf,
-            @RequestParam(required = false) Double lat,
-            @RequestParam(required = false) Double lon
+            LocalDateTime asOf
     ) {
         ZoneId KST = ZoneId.of("Asia/Seoul");
         LocalDate target = (date != null) ? date : LocalDate.now(KST);
