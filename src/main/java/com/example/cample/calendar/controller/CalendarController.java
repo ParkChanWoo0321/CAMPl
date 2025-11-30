@@ -3,7 +3,6 @@ package com.example.cample.calendar.controller;
 
 import com.example.cample.calendar.dto.CalendarEventDto;
 import com.example.cample.calendar.service.CalendarService;
-import com.example.cample.calendar.domain.EventType;   // ★ LECTURE 필터용
 import com.example.cample.place.domain.Place;
 import com.example.cample.place.domain.PlaceType;
 import com.example.cample.place.repo.PlaceRepository;
@@ -321,16 +320,15 @@ public class CalendarController {
 
     private List<Map<String, Object>> buildPlaceMarkers(List<CalendarEventDto> items) {
 
-        // 0) 강의(LECTURE)는 마커 계산에서 제외
+        // 강의(LECTURE) + SCHOOL + PERSONAL 전부 포함, 위치 있는 것만
         List<CalendarEventDto> located = items.stream()
-                .filter(e -> e.getType() == null || !EventType.LECTURE.equals(e.getType()))
                 .filter(e -> e.getLocation() != null && !e.getLocation().isBlank())
                 .toList();
         if (located.isEmpty()) {
             return List.of();
         }
 
-        // 좌표 있는 전체 Place (캠퍼스 건물 + 식당/카페/술집 등)
+        // 좌표가 있는 전체 Place (캠퍼스 건물 + 식당/카페/술집 등)
         List<Place> places = placeRepository.findAll().stream()
                 .filter(p -> p.getLatitude() != null && p.getLongitude() != null)
                 .toList();
