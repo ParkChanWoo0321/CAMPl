@@ -3,7 +3,7 @@ package com.example.cample.calendar.controller;
 
 import com.example.cample.calendar.dto.CalendarEventDto;
 import com.example.cample.calendar.service.CalendarService;
-import com.example.cample.calendar.domain.EventType;   // ★ 추가
+import com.example.cample.calendar.domain.EventType;   // ★ LECTURE 필터용
 import com.example.cample.place.domain.Place;
 import com.example.cample.place.domain.PlaceType;
 import com.example.cample.place.repo.PlaceRepository;
@@ -21,7 +21,6 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
