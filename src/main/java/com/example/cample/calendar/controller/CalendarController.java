@@ -1,6 +1,7 @@
 // src/main/java/com/example/cample/calendar/controller/CalendarController.java
 package com.example.cample.calendar.controller;
 
+import com.example.cample.calendar.domain.EventType;          // ★ 추가
 import com.example.cample.calendar.dto.CalendarEventDto;
 import com.example.cample.calendar.service.CalendarService;
 import com.example.cample.place.domain.Place;
@@ -320,8 +321,9 @@ public class CalendarController {
 
     private List<Map<String, Object>> buildPlaceMarkers(List<CalendarEventDto> items) {
 
-        // 위치가 있는 일정만
+        // LECTURE 는 시간표 쪽에서만 마커를 쓰도록 제외
         List<CalendarEventDto> located = items.stream()
+                .filter(e -> e.getType() == null || !EventType.LECTURE.equals(e.getType()))
                 .filter(e -> e.getLocation() != null && !e.getLocation().isBlank())
                 .toList();
         if (located.isEmpty()) {
