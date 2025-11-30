@@ -1,9 +1,9 @@
 // src/main/java/com/example/cample/calendar/controller/CalendarController.java
 package com.example.cample.calendar.controller;
 
-import com.example.cample.calendar.domain.EventType;          // ★ 추가
 import com.example.cample.calendar.dto.CalendarEventDto;
 import com.example.cample.calendar.service.CalendarService;
+import com.example.cample.calendar.domain.EventType;   // ★ 추가
 import com.example.cample.place.domain.Place;
 import com.example.cample.place.domain.PlaceType;
 import com.example.cample.place.repo.PlaceRepository;
@@ -21,6 +21,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
@@ -167,7 +168,7 @@ public class CalendarController {
         );
     }
 
-    // 맵 페이지 전용 API (지도 마커 + 지난 일정/다음 일정 + 주변 시설 3곳 + 그 날 전체 강의/일정)
+    // 맵 페이지 전용 API
     @GetMapping("/map/{lat}/{lon}")
     public Map<String, Object> mapOverview(
             @AuthenticationPrincipal CustomUserPrincipal me,
@@ -321,7 +322,7 @@ public class CalendarController {
 
     private List<Map<String, Object>> buildPlaceMarkers(List<CalendarEventDto> items) {
 
-        // LECTURE 는 시간표 쪽에서만 마커를 쓰도록 제외
+        // 0) 강의(LECTURE)는 마커 계산에서 제외
         List<CalendarEventDto> located = items.stream()
                 .filter(e -> e.getType() == null || !EventType.LECTURE.equals(e.getType()))
                 .filter(e -> e.getLocation() != null && !e.getLocation().isBlank())
@@ -330,7 +331,7 @@ public class CalendarController {
             return List.of();
         }
 
-        // 좌표가 있는 전체 Place (캠퍼스 건물 + 식당/카페/술집 등)
+        // 좌표 있는 전체 Place (캠퍼스 건물 + 식당/카페/술집 등)
         List<Place> places = placeRepository.findAll().stream()
                 .filter(p -> p.getLatitude() != null && p.getLongitude() != null)
                 .toList();
