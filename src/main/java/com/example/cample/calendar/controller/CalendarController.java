@@ -4,6 +4,7 @@ package com.example.cample.calendar.controller;
 import com.example.cample.calendar.dto.CalendarEventDto;
 import com.example.cample.calendar.service.CalendarService;
 import com.example.cample.place.domain.Place;
+import com.example.cample.place.domain.PlaceType; // ★ 추가
 import com.example.cample.place.repo.PlaceRepository;
 import com.example.cample.security.model.CustomUserPrincipal;
 import jakarta.validation.Valid;
@@ -190,7 +191,6 @@ public class CalendarController {
 
         var items = service.list(from, to, me.getId());
 
-        // 그 날의 강의 전체
         var lectures = items.stream()
                 .filter(e -> e.getType() != null && e.getType().name().equals("LECTURE"))
                 .map(e -> {
@@ -204,7 +204,6 @@ public class CalendarController {
                 })
                 .toList();
 
-        // 그 날의 일정 전체(학교+개인)
         var dayEvents = items.stream()
                 .filter(e -> e.getType() != null &&
                         (e.getType().name().equals("PERSONAL") || e.getType().name().equals("SCHOOL")))
@@ -223,10 +222,8 @@ public class CalendarController {
                 })
                 .toList();
 
-        // 지도 마커용 집계
         var placeMarkers = buildPlaceMarkers(items);
 
-        // 지난 일정 / 다음 일정 분리
         var pastEvents = new ArrayList<Map<String, Object>>();
         var upcomingEvents = new ArrayList<Map<String, Object>>();
 
@@ -244,7 +241,6 @@ public class CalendarController {
             if (e.getType() != null) m.put("type", e.getType());
             if (e.getOrigin() != null) m.put("origin", e.getOrigin());
 
-            // 종료 시각이 pivot 이전/같으면 지난 일정, 이후면 다음 일정
             if (!e.getEndAt().isAfter(pivot)) {
                 pastEvents.add(m);
             } else {
@@ -252,7 +248,6 @@ public class CalendarController {
             }
         }
 
-        // 주변 시설 3곳 (현재 위치 기준, 식당/카페/술집만)
         var nearbyPlaces = service.getNearbyPlaces(lat, lon, 3);
 
         return Map.of(
@@ -310,53 +305,60 @@ public class CalendarController {
     }
 
     private List<Map<String, Object>> buildPlaceMarkers(List<CalendarEventDto> items) {
-        Set<String> markerKeys = items.stream()
-                .map(CalendarEventDto::getLocation)
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .map(this::extractMarkerKey)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toSet());
 
-        if (markerKeys.isEmpty()) {
+        // 위치가 있는 일정만
+        var located = items.stream()
+                .filter(e -> e.getLocation() != null && !e.getLocation().isBlank())
+                .toList();
+        if (located.isEmpty()) {
             return List.of();
         }
 
-        List<Place> places = placeRepository.findByNameIn(markerKeys);
-        if (places.isEmpty()) {
+        // 캠퍼스 건물만 대상으로 (CAMPUS_BUILDING)
+        List<Place> buildings = placeRepository.findByType(PlaceType.CAMPUS_BUILDING);
+        if (buildings.isEmpty()) {
             return List.of();
         }
 
-        Map<String, Place> placeMap = places.stream()
+        // 이름 -> Place 매핑 (좌표 있는 것만)
+        Map<String, Place> byName = buildings.stream()
                 .filter(p -> p.getLatitude() != null && p.getLongitude() != null)
-                .collect(Collectors.toMap(
-                        Place::getName,
-                        p -> p
-                ));
+                .collect(Collectors.toMap(Place::getName, p -> p));
 
-        if (placeMap.isEmpty()) {
+        if (byName.isEmpty()) {
             return List.of();
         }
 
-        Map<String, Map<String, Object>> agg = new LinkedHashMap<>();
+        // placeId 기준 집계: "[H01] 이학관" / "이학관" 모두 한 건물로 합치기
+        Map<Long, Map<String, Object>> agg = new LinkedHashMap<>();
 
-        for (CalendarEventDto e : items) {
-            String loc = e.getLocation();
-            if (loc == null || loc.isBlank()) continue;
+        for (CalendarEventDto e : located) {
+            String loc = e.getLocation().trim();
+            String base = extractMarkerKey(loc); // 예: "[H01] 이학관", "이학관"
 
-            String key = extractMarkerKey(loc.trim());
-            Place place = placeMap.get(key);
+            // 1차: 이름 완전 일치
+            Place place = byName.get(base);
+
+            // 2차: 끝부분 일치로 매칭 (Place="[H01] 이학관", base="이학관")
+            if (place == null) {
+                String keyForMatch = base;
+                place = buildings.stream()
+                        .filter(p -> p.getLatitude() != null && p.getLongitude() != null)
+                        .filter(p -> p.getName().endsWith(keyForMatch))
+                        .findFirst()
+                        .orElse(null);
+            }
+
             if (place == null) continue;
 
-            Map<String, Object> m = agg.get(key);
+            Map<String, Object> m = agg.get(place.getId());
             if (m == null) {
                 m = new LinkedHashMap<>();
-                m.put("name", key);
+                m.put("name", place.getName());          // 항상 Place 이름 사용
                 m.put("latitude", place.getLatitude());
                 m.put("longitude", place.getLongitude());
                 m.put("count", 0);
-                agg.put(key, m);
+                agg.put(place.getId(), m);
             }
             int cnt = (int) m.get("count");
             m.put("count", cnt + 1);
@@ -364,4 +366,5 @@ public class CalendarController {
 
         return new ArrayList<>(agg.values());
     }
+
 }
