@@ -65,7 +65,7 @@ public class EmailVerificationService {
         repo.save(ev);
     }
 
-    // 인라인 스타일 버전 HTML 템플릿
+    // 파란색 → 보라색, VERIFICATION CODE 제거, 코드 pill 정렬 수정
     private String buildVerificationEmailHtml(String code) {
         return """
 <!DOCTYPE html>
@@ -74,8 +74,8 @@ public class EmailVerificationService {
     <div style="padding:32px 0;">
       <div style="max-width:480px;width:100%%;margin:0 auto;background-color:#ffffff;border-radius:16px;box-shadow:0 10px 30px rgba(15,23,42,0.08);overflow:hidden;">
         
-        <!-- 헤더 -->
-        <div style="padding:20px 24px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#ffffff;font-weight:700;font-size:18px;">
+        <!-- 헤더 (보라색 그라데이션) -->
+        <div style="padding:20px 24px;background:linear-gradient(135deg,#c084fc,#a855f7);color:#ffffff;font-weight:700;font-size:18px;">
           <span style="display:inline-block;margin-right:8px;padding:4px 10px;border-radius:999px;background-color:rgba(15,23,42,0.25);font-size:12px;letter-spacing:0.08em;text-transform:uppercase;">
             CAMPLE
           </span>
@@ -91,12 +91,9 @@ public class EmailVerificationService {
             Cample 가입을 계속하려면 아래 인증 코드를 입력해 주세요.
           </div>
 
-          <!-- 코드 박스 -->
-          <div style="margin:16px 0 20px 0;padding:16px 20px;background-color:#eff6ff;border-radius:12px;border:1px solid #bfdbfe;text-align:center;">
-            <div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#60a5fa;margin-bottom:6px;">
-              verification code
-            </div>
-            <div style="display:inline-block;padding:8px 18px;border-radius:999px;background-color:#1d4ed8;color:#ffffff;font-size:22px;letter-spacing:0.35em;font-weight:700;">
+          <!-- 코드 박스 (보라색 톤) -->
+          <div style="margin:16px 0 20px 0;padding:16px 20px;background-color:#f5efff;border-radius:12px;border:1px solid #ddd6fe;text-align:center;">
+            <div style="display:inline-block;min-width:220px;padding:10px 24px;border-radius:999px;background-color:#a855f7;color:#ffffff;font-size:22px;font-weight:700;text-align:center;">
               %s
             </div>
           </div>
