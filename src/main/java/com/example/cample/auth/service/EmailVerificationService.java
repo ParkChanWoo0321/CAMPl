@@ -77,7 +77,7 @@ public class EmailVerificationService {
         <!-- 헤더 (보라색 그라데이션) -->
         <div style="padding:20px 24px;background:linear-gradient(135deg,#c084fc,#a855f7);color:#ffffff;font-weight:700;font-size:18px;">
           <span style="display:inline-block;margin-right:8px;padding:4px 10px;border-radius:999px;background-color:rgba(15,23,42,0.25);font-size:12px;letter-spacing:0.08em;text-transform:uppercase;">
-            CAMPL
+            CAMPl
           </span>
           <span>이메일 인증 안내</span>
         </div>
@@ -88,7 +88,7 @@ public class EmailVerificationService {
             이메일 주소 확인을 완료해 주세요.
           </div>
           <div style="font-size:13px;color:#6b7280;margin-bottom:20px;">
-            Campl 가입을 계속하려면 아래 인증 코드를 입력해 주세요.
+            CAMPl 가입을 계속하려면 아래 인증 코드를 입력해 주세요.
           </div>
 
           <!-- 코드 박스 (보라색 톤) -->
@@ -111,8 +111,8 @@ public class EmailVerificationService {
 
         <!-- 푸터 -->
         <div style="padding:14px 24px 18px 24px;font-size:11px;color:#9ca3af;line-height:1.5;">
-          본 메일은 발신 전용입니다. 궁금한 점이 있다면 Campl 내 문의 기능을 이용해 주세요.<br/>
-          &copy; Campl. All rights reserved.
+          본 메일은 발신 전용입니다. 궁금한 점이 있다면 CAMPl 내 문의 기능을 이용해 주세요.<br/>
+          &copy; CAMPl. All rights reserved.
         </div>
       </div>
     </div>
