@@ -210,6 +210,7 @@ public class CalendarController {
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("id", e.getId());
                     m.put("title", e.getTitle());
+                    m.put("description", e.getDescription());
                     if (e.getLocation() != null && !e.getLocation().isBlank()) m.put("location", e.getLocation());
                     m.put("startAt", e.getStartAt());
                     m.put("endAt", e.getEndAt());
@@ -230,6 +231,7 @@ public class CalendarController {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", e.getId());
             m.put("title", e.getTitle());
+            m.put("description", e.getDescription());
             if (e.getLocation() != null && !e.getLocation().isBlank()) {
                 m.put("location", e.getLocation());
             }
