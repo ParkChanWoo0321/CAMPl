@@ -27,6 +27,17 @@ public class TimetableController {
         );
     }
 
+    // 내 시간표 총 학점 조회
+    @GetMapping("/credits")
+    public Map<String, Object> myTotalCredits(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal CustomUserPrincipal me) {
+        int totalCredits = service.myTotalCredits(me.getId());
+        return Map.of(
+                "semester", SemesterConst.SEMESTER_CODE,
+                "totalCredits", totalCredits
+        );
+    }
+
     // 1단계: 충돌 검사 + (충돌 없으면 즉시 추가)
     @PostMapping("/items/try-add")
     public TryAddResponse tryAdd(@Valid @RequestBody AddCourseRequest req,

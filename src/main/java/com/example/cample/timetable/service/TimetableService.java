@@ -67,6 +67,32 @@ public class TimetableService {
                 .toList();
     }
 
+    // 새로 추가: 내 시간표 총 학점
+    @Transactional(readOnly = true)
+    public int myTotalCredits(Long userId) {
+        List<TimetableItem> items =
+                itemRepo.findByUserIdAndSemesterCode(userId, SemesterConst.SEMESTER_CODE);
+
+        if (items.isEmpty()) {
+            return 0;
+        }
+
+        List<Long> courseIds = items.stream()
+                .map(TimetableItem::getCourseId)
+                .toList();
+
+        List<Course> courses = courseRepo.findAllById(courseIds);
+        if (courses.isEmpty()) {
+            return 0;
+        }
+
+        return courses.stream()
+                .map(Course::getCredit)
+                .filter(Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .sum();
+    }
+
     // 1) 시도: 충돌 없으면 즉시 추가, 있으면 conflict=true 만 반환
     @Transactional
     public TryAddResponse tryAdd(Long userId, Long courseId) {
