@@ -95,8 +95,10 @@ public class CourseController {
 
     // 단건: 상세 + 평점 + 강의평 목록(기본: 최신순)
     @GetMapping("/{courseId}")
-    public CourseDto getOne(@PathVariable Long courseId) {
-        return service.getOne(courseId);
+    public CourseDto getOne(@PathVariable Long courseId,
+                            @AuthenticationPrincipal CustomUserPrincipal me) {
+        Long meId = (me != null) ? me.getId() : null;
+        return service.getOne(courseId, meId);
     }
 
     // ===== 강의평 조회(정렬별) =====
@@ -104,26 +106,34 @@ public class CourseController {
 
     // 최신순(createdAt DESC)
     @GetMapping("/reviews/latest/{courseId}")
-    public CourseDto getReviewsLatest(@PathVariable Long courseId) {
-        return service.getOneWithSortedReviews(courseId, "latest");
+    public CourseDto getReviewsLatest(@PathVariable Long courseId,
+                                      @AuthenticationPrincipal CustomUserPrincipal me) {
+        Long meId = (me != null) ? me.getId() : null;
+        return service.getOneWithSortedReviews(courseId, "latest", meId);
     }
 
     // 오래된순(createdAt ASC)
     @GetMapping("/reviews/oldest/{courseId}")
-    public CourseDto getReviewsOldest(@PathVariable Long courseId) {
-        return service.getOneWithSortedReviews(courseId, "oldest");
+    public CourseDto getReviewsOldest(@PathVariable Long courseId,
+                                      @AuthenticationPrincipal CustomUserPrincipal me) {
+        Long meId = (me != null) ? me.getId() : null;
+        return service.getOneWithSortedReviews(courseId, "oldest", meId);
     }
 
     // 별점 높은순(rating DESC → createdAt DESC)
     @GetMapping("/reviews/rating-high/{courseId}")
-    public CourseDto getReviewsRatingHigh(@PathVariable Long courseId) {
-        return service.getOneWithSortedReviews(courseId, "ratingDesc");
+    public CourseDto getReviewsRatingHigh(@PathVariable Long courseId,
+                                          @AuthenticationPrincipal CustomUserPrincipal me) {
+        Long meId = (me != null) ? me.getId() : null;
+        return service.getOneWithSortedReviews(courseId, "ratingDesc", meId);
     }
 
     // 별점 낮은순(rating ASC → createdAt ASC)
     @GetMapping("/reviews/rating-low/{courseId}")
-    public CourseDto getReviewsRatingLow(@PathVariable Long courseId) {
-        return service.getOneWithSortedReviews(courseId, "ratingAsc");
+    public CourseDto getReviewsRatingLow(@PathVariable Long courseId,
+                                         @AuthenticationPrincipal CustomUserPrincipal me) {
+        Long meId = (me != null) ? me.getId() : null;
+        return service.getOneWithSortedReviews(courseId, "ratingAsc", meId);
     }
 
     // ===== 강의평 작성/수정/삭제 =====

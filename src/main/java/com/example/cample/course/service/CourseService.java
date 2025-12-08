@@ -288,7 +288,7 @@ public class CourseService {
 
     // ===== 단건/리뷰 =====
     @Transactional(readOnly = true)
-    public CourseDto getOne(Long courseId) {
+    public CourseDto getOne(Long courseId, Long meId) {
         Course c = courseRepo.findById(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "강의가 존재하지 않습니다"));
         if (!SemesterConst.SEMESTER_CODE.equals(c.getSemesterCode())) {
@@ -297,13 +297,15 @@ public class CourseService {
         var times = timeRepo.findByCourseId(courseId);
         var s = statOf(courseId);
         var reviews = reviewRepo.findByCourseIdAndDeletedFalseOrderByCreatedAtDesc(courseId)
-                .stream().map(ReviewResponse::from).toList();
+                .stream()
+                .map(r -> ReviewResponse.from(r, meId))
+                .toList();
         return CourseDto.fromDetailed(c, times, s.avg(), s.count(), reviews);
     }
 
     // 정렬 전용: 과목 정보 + 정렬된 리뷰 목록
     @Transactional(readOnly = true)
-    public CourseDto getOneWithSortedReviews(Long courseId, String sortKey) {
+    public CourseDto getOneWithSortedReviews(Long courseId, String sortKey, Long meId) {
         Course c = courseRepo.findById(courseId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "강의가 존재하지 않습니다"));
         if (!SemesterConst.SEMESTER_CODE.equals(c.getSemesterCode())) {
@@ -330,7 +332,7 @@ public class CourseService {
 
         var reviews = reviewRepo.findByCourseIdAndDeletedFalse(courseId, sort)
                 .stream()
-                .map(ReviewResponse::from)
+                .map(r -> ReviewResponse.from(r, meId))
                 .toList();
 
         return CourseDto.fromDetailed(c, times, s.avg(), s.count(), reviews);
@@ -348,7 +350,8 @@ public class CourseService {
         r.setRating(req.getRating());
         r.setContent(req.getContent());
         r.setDeleted(false);
-        return ReviewResponse.from(reviewRepo.save(r));
+        CourseReview saved = reviewRepo.save(r);
+        return ReviewResponse.from(saved, userId);
     }
 
     // 수정 전용(없으면 404)
@@ -364,7 +367,8 @@ public class CourseService {
         r.setRating(req.getRating());
         r.setContent(req.getContent());
         r.setDeleted(false);
-        return ReviewResponse.from(reviewRepo.save(r));
+        CourseReview saved = reviewRepo.save(r);
+        return ReviewResponse.from(saved, userId);
     }
 
     @Transactional
